@@ -447,6 +447,12 @@ export default function Dashboard() {
         if (token) {
           console.log("[XloudID] Processing token:", token.substring(0, 10) + "...");
           try {
+            console.log("[XloudID] Firebase config check:", {
+              apiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+              authDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+              projectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+            });
+            
             const userCredential = await signInWithCustomToken(auth, token);
             const user = userCredential.user;
             console.log("[XloudID] Successfully signed in user:", {
@@ -481,7 +487,11 @@ export default function Dashboard() {
                 console.log("[XloudID] Updated existing user document");
               }
             } catch (firestoreError) {
-              console.error("[XloudID] Firestore operation error:", firestoreError);
+              console.error("[XloudID] Firestore operation error:", {
+                code: (firestoreError as any).code,
+                message: (firestoreError as any).message,
+                stack: (firestoreError as any).stack
+              });
             }
 
             // Clean up URL
@@ -489,12 +499,22 @@ export default function Dashboard() {
             window.history.replaceState({}, document.title, url.pathname);
             console.log("[XloudID] URL cleaned up");
           } catch (error) {
-            const authError = error as Error;
-            console.error("[XloudID] Authentication error:", {
-              code: authError.name,
+            const authError = error as any;
+            console.error("[XloudID] Authentication error details:", {
+              code: authError.code,
               message: authError.message,
-              stack: authError.stack
+              stack: authError.stack,
+              name: authError.name,
+              fullError: authError
             });
+            
+            // Store error in localStorage for debugging
+            localStorage.setItem('xloudid_auth_error', JSON.stringify({
+              timestamp: new Date().toISOString(),
+              code: authError.code,
+              message: authError.message,
+              name: authError.name
+            }));
           }
         }
       }
