@@ -28,7 +28,7 @@ export default function LandingPage() {
         "https://www.xognito.com",
         "https://xognito.vercel.app"
       ];
-      let validatedRedirectUrl = "/dashboard";
+      let validatedRedirectUrl = "https://xognito.com/dashboard";
       if (redirect) {
         try {
           const redirectUrl = new URL(redirect);
@@ -36,7 +36,7 @@ export default function LandingPage() {
             validatedRedirectUrl = redirect;
           }
         } catch (e) {
-          // Optionally, allow relative paths
+          // Allow relative paths (e.g., /dashboard)
           if (redirect.startsWith("/")) {
             validatedRedirectUrl = redirect;
           }
@@ -59,7 +59,7 @@ export default function LandingPage() {
             // Optionally, clean up the URL
             url.searchParams.delete('token');
             window.history.replaceState({}, document.title, url.pathname + url.search);
-            console.log("Redirecting to:", validatedRedirectUrl);
+            console.log("[XloudID] Redirecting to:", validatedRedirectUrl);
             window.location.href = validatedRedirectUrl;
           })
           .catch((err) => {
