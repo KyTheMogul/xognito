@@ -648,6 +648,7 @@ export default function Dashboard() {
           <Button
             className="w-full bg-white text-black font-semibold rounded-lg shadow hover:bg-zinc-100 transition-colors"
             variant="default"
+            onClick={handleNewChat}
           >
             + New Chat
           </Button>
