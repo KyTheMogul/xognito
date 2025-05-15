@@ -7,7 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, writeBatch, collection } from 'firebase/firestore';
 
 const chatHistorySeed = [
   { id: 1, name: 'Chat with Alice' },
@@ -496,20 +496,78 @@ export default function Dashboard() {
               if (!userSnap.exists()) {
                 console.log("[XloudID] Creating new user document");
                 const userData = {
-                  email: user.email,
-                  createdAt: new Date(),
-                  lastLogin: new Date(),
-                  emailVerified: user.emailVerified,
-                  displayName: user.displayName || null,
-                  photoURL: user.photoURL || null
+                  profile: {
+                    xloudID: user.email?.split('@')[0] || null,
+                    displayName: user.displayName || user.email?.split('@')[0] || null,
+                    email: user.email,
+                    createdAt: new Date(),
+                    plan: 'free',
+                    referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+                    isOnboarded: false
+                  },
+                  subscription: {
+                    isActive: false,
+                    plan: 'free',
+                    billingCycleStart: null,
+                    nextBillingDate: null
+                  }
                 };
                 console.log("[XloudID] User data to be saved:", userData);
                 
+                // Create the main user document
                 await setDoc(userRef, userData);
                 console.log("[XloudID] Successfully created user document");
+
+                // Create initial subcollections
+                const batch = writeBatch(db);
+                
+                // Create initial memory
+                const memoryRef = doc(collection(userRef, 'memory'));
+                batch.set(memoryRef, {
+                  type: 'note',
+                  content: 'Welcome to Xognito! This is your first memory.',
+                  createdAt: new Date(),
+                  context: null
+                });
+
+                // Create initial conversation
+                const conversationRef = doc(collection(userRef, 'conversations'));
+                batch.set(conversationRef, {
+                  title: 'Welcome',
+                  createdAt: new Date(),
+                  isPinned: true
+                });
+
+                // Add welcome message to the conversation
+                const messageRef = doc(collection(conversationRef, 'messages'));
+                batch.set(messageRef, {
+                  sender: 'assistant',
+                  text: 'Welcome to Xognito! How can I help you today?',
+                  timestamp: new Date()
+                });
+
+                // Create initial tap
+                const tapRef = doc(collection(userRef, 'taps'));
+                batch.set(tapRef, {
+                  name: 'Quick Summary',
+                  type: 'text',
+                  createdAt: new Date(),
+                  inputExamples: ['Summarize this text', 'Give me the key points'],
+                  config: {
+                    visionEnabled: false,
+                    webEnabled: true,
+                    offlineSupported: true
+                  }
+                });
+
+                // Commit the batch
+                await batch.commit();
+                console.log("[XloudID] Successfully created initial subcollections");
               } else {
                 // Update last login time
-                await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
+                await setDoc(userRef, { 
+                  'profile.lastLogin': new Date() 
+                }, { merge: true });
                 console.log("[XloudID] Updated existing user document");
               }
             } catch (firestoreError) {
