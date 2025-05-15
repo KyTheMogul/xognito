@@ -7,7 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { 
   createConversation, 
   getConversations, 
@@ -322,16 +322,32 @@ export default function Dashboard() {
         console.log("[Dashboard] Conversation title updated");
       }
 
-      // Add AI response
+      // Add AI response placeholder
       console.log("[Dashboard] Adding AI response placeholder");
       const aiMessage: Omit<Message, 'timestamp'> = {
         sender: 'ai',
         text: 'I am processing your request...',
       };
-      await addMessage(user.uid, activeConversationId!, aiMessage);
+      const aiMessageId = await addMessage(user.uid, activeConversationId!, aiMessage);
       console.log("[Dashboard] AI response placeholder added");
 
-      // TODO: Implement AI response generation
+      // Call DeepSeek API and stream the response
+      const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: input }
+      ];
+
+      let aiResponse = '';
+      await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+        aiResponse += chunk;
+        // Update the AI message in Firestore with the current response
+        const updatedAiMessage: Omit<Message, 'timestamp'> = {
+          sender: 'ai',
+          text: aiResponse,
+        };
+        updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
+      });
+
     } catch (error) {
       console.error("[Dashboard] Error sending message:", error);
     }
