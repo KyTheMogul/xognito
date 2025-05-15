@@ -86,8 +86,8 @@ export default function LandingPage() {
           <a href="#why" className="hover:text-zinc-300 transition-colors">Why Xognito?</a>
         </nav>
         <div className="flex items-center gap-3">
-          <a href="https://auth.xloudone.com/signup" target="_blank" rel="noopener noreferrer"><Button variant="ghost" className="text-white border border-white/20 bg-transparent hover:bg-white/10 rounded-full px-4 py-1.5 text-sm">Try Free</Button></a>
-          <a href="https://auth.xloudone.com" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white cursor-pointer text-sm font-medium">Log In</a>
+          <a href="https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard" target="_blank" rel="noopener noreferrer"><Button variant="ghost" className="text-white border border-white/20 bg-transparent hover:bg-white/10 rounded-full px-4 py-1.5 text-sm">Try Free</Button></a>
+          <a href="https://auth.xloudone.com/login?redirect=https://xognito.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white cursor-pointer text-sm font-medium">Log In</a>
         </div>
       </header>
 
@@ -96,7 +96,7 @@ export default function LandingPage() {
         <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight">Your Private AI, Reinvented.</h1>
         <p className="text-lg md:text-2xl text-zinc-300 max-w-2xl mb-10">Xognito helps you think, plan, write, and grow — in your own space, on your own terms.</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a href="https://auth.xloudone.com/signup" target="_blank" rel="noopener noreferrer"><Button size="lg" variant="outline" className="rounded-full px-8 py-3 text-lg font-semibold bg-transparent border border-zinc-300 text-white hover:bg-white hover:text-black">Try Free</Button></a>
+          <a href="https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard" target="_blank" rel="noopener noreferrer"><Button size="lg" variant="outline" className="rounded-full px-8 py-3 text-lg font-semibold bg-transparent border border-zinc-300 text-white hover:bg-white hover:text-black">Try Free</Button></a>
           <a href="#compare"><Button size="lg" variant="outline" className="rounded-full px-8 py-3 text-lg font-semibold bg-transparent border border-zinc-300 text-white hover:bg-white hover:text-black">View Pricing</Button></a>
         </div>
       </section>
@@ -185,7 +185,7 @@ export default function LandingPage() {
       {/* Join Now CTA */}
       <section className="flex flex-col items-center justify-center text-center py-16 px-4">
         <h3 className="text-2xl md:text-3xl font-bold mb-4">Start using your own AI today — no credit card required.</h3>
-        <a href="https://auth.xloudone.com/signup" target="_blank" rel="noopener noreferrer"><Button size="lg" variant="outline" className="rounded-full px-8 py-3 text-lg font-semibold bg-transparent border border-zinc-300 text-white hover:bg-white hover:text-black">Try Free</Button></a>
+        <a href="https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard" target="_blank" rel="noopener noreferrer"><Button size="lg" variant="outline" className="rounded-full px-8 py-3 text-lg font-semibold bg-transparent border border-zinc-300 text-white hover:bg-white hover:text-black">Try Free</Button></a>
       </section>
 
       {/* Footer */}
