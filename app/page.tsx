@@ -19,10 +19,29 @@ export default function LandingPage() {
   const proRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Check for token in URL (e.g., ?token=...)
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       const token = url.searchParams.get('token');
+      const redirect = url.searchParams.get('redirect');
+      const ALLOWED_REDIRECT_DOMAINS = [
+        "https://xognito.com",
+        "https://www.xognito.com",
+        "https://xognito.vercel.app"
+      ];
+      let validatedRedirectUrl = "/dashboard";
+      if (redirect) {
+        try {
+          const redirectUrl = new URL(redirect);
+          if (ALLOWED_REDIRECT_DOMAINS.includes(redirectUrl.origin)) {
+            validatedRedirectUrl = redirect;
+          }
+        } catch (e) {
+          // Optionally, allow relative paths
+          if (redirect.startsWith("/")) {
+            validatedRedirectUrl = redirect;
+          }
+        }
+      }
       if (token) {
         signInWithCustomToken(auth, token)
           .then(async (userCredential) => {
@@ -40,8 +59,8 @@ export default function LandingPage() {
             // Optionally, clean up the URL
             url.searchParams.delete('token');
             window.history.replaceState({}, document.title, url.pathname + url.search);
-            // Redirect to dashboard
-            window.location.href = "/dashboard";
+            console.log("Redirecting to:", validatedRedirectUrl);
+            window.location.href = validatedRedirectUrl;
           })
           .catch((err) => {
             // Handle error (invalid/expired token, etc.)
@@ -68,7 +87,7 @@ export default function LandingPage() {
         </nav>
         <div className="flex items-center gap-3">
           <a href="https://auth.xloudone.com/signup" target="_blank" rel="noopener noreferrer"><Button variant="ghost" className="text-white border border-white/20 bg-transparent hover:bg-white/10 rounded-full px-4 py-1.5 text-sm">Try Free</Button></a>
-          <a href="/login" className="text-white/80 hover:text-white cursor-pointer text-sm font-medium">Log In</a>
+          <a href="https://auth.xloudone.com" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white cursor-pointer text-sm font-medium">Log In</a>
         </div>
       </header>
 
