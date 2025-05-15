@@ -11,8 +11,22 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+console.log("[XloudID] Firebase config:", {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasAuthDomain: !!firebaseConfig.authDomain,
+  hasProjectId: !!firebaseConfig.projectId,
+  hasStorageBucket: !!firebaseConfig.storageBucket,
+  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+  hasAppId: !!firebaseConfig.appId
+});
+
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+console.log("[XloudID] Firebase app initialized:", !!app);
+
 const auth = getAuth(app);
+console.log("[XloudID] Firebase auth initialized:", !!auth);
+
 const db = getFirestore(app);
+console.log("[XloudID] Firebase Firestore initialized:", !!db);
 
 export { app, auth, db }; 
