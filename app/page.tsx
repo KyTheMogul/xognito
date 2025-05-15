@@ -43,18 +43,27 @@ export default function LandingPage() {
         }
       }
       if (token) {
+        console.log("[XloudID] Received token:", token.substring(0, 10) + "...");
         signInWithCustomToken(auth, token)
           .then(async (userCredential) => {
             const user = userCredential.user;
+            console.log("[XloudID] Successfully signed in user:", user.uid);
             // Create user doc in Firestore if not exists
             const userRef = doc(db, 'users', user.uid);
             const userSnap = await getDoc(userRef);
+            console.log("[XloudID] Checking if user document exists:", userSnap.exists());
             if (!userSnap.exists()) {
-              await setDoc(userRef, {
-                email: user.email,
-                createdAt: new Date(),
-                // Add any other default fields here
-              });
+              console.log("[XloudID] Creating new user document");
+              try {
+                await setDoc(userRef, {
+                  email: user.email,
+                  createdAt: new Date(),
+                  // Add any other default fields here
+                });
+                console.log("[XloudID] Successfully created user document");
+              } catch (error) {
+                console.error("[XloudID] Error creating user document:", error);
+              }
             }
             // Optionally, clean up the URL
             url.searchParams.delete('token');
@@ -64,8 +73,10 @@ export default function LandingPage() {
           })
           .catch((err) => {
             // Handle error (invalid/expired token, etc.)
-            console.error('Firebase sign-in error:', err);
+            console.error('[XloudID] Firebase sign-in error:', err);
           });
+      } else {
+        console.log("[XloudID] No token found in URL");
       }
     }
   }, []);
