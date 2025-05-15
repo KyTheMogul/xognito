@@ -11,6 +11,7 @@ import { signInWithCustomToken } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export default function LandingPage() {
+  console.log("[XloudID] Landing page component mounted");
   const [pricingOpen, setPricingOpen] = useState(false);
   const [proFeaturesExpanded, setProFeaturesExpanded] = useState(false);
   const [proPlusFeaturesExpanded, setProPlusFeaturesExpanded] = useState(false);
@@ -19,10 +20,15 @@ export default function LandingPage() {
   const proRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log("[XloudID] useEffect triggered");
     const handleAuth = async () => {
+      console.log("[XloudID] handleAuth started");
       if (typeof window !== 'undefined') {
+        console.log("[XloudID] Window is defined");
         const url = new URL(window.location.href);
         const token = url.searchParams.get('token');
+        console.log("[XloudID] Current URL:", window.location.href);
+        console.log("[XloudID] Token from URL:", token ? "Present" : "Not present");
         const redirect = url.searchParams.get('redirect');
         const ALLOWED_REDIRECT_DOMAINS = [
           "https://xognito.com",
