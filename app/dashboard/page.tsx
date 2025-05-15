@@ -448,9 +448,16 @@ export default function Dashboard() {
           console.log("[XloudID] Processing token:", token.substring(0, 10) + "...");
           try {
             console.log("[XloudID] Firebase config check:", {
-              apiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-              authDomain: !!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-              projectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? `${process.env.NEXT_PUBLIC_FIREBASE_API_KEY.substring(0, 5)}...` : 'missing',
+              authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'missing',
+              projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'missing'
+            });
+            
+            // Log the token details (first few characters only)
+            console.log("[XloudID] Token details:", {
+              tokenLength: token.length,
+              tokenPrefix: token.substring(0, 10) + "...",
+              tokenType: typeof token
             });
             
             const userCredential = await signInWithCustomToken(auth, token);
