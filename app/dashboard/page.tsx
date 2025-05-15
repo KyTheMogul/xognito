@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { auth, db } from '@/lib/firebase';
+import { signInWithCustomToken } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const chatHistorySeed = [
   { id: 1, name: 'Chat with Alice' },
@@ -431,6 +434,74 @@ export default function Dashboard() {
     recognitionRef.current = recognition;
     recognition.start();
   }, [input, listening, handleSend]);
+
+  useEffect(() => {
+    console.log("[XloudID] Dashboard component mounted");
+    const handleAuth = async () => {
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        const token = url.searchParams.get('token');
+        console.log("[XloudID] Current URL:", window.location.href);
+        console.log("[XloudID] Token from URL:", token ? "Present" : "Not present");
+
+        if (token) {
+          console.log("[XloudID] Processing token:", token.substring(0, 10) + "...");
+          try {
+            const userCredential = await signInWithCustomToken(auth, token);
+            const user = userCredential.user;
+            console.log("[XloudID] Successfully signed in user:", {
+              uid: user.uid,
+              email: user.email,
+              emailVerified: user.emailVerified
+            });
+
+            // Create user doc in Firestore if not exists
+            const userRef = doc(db, 'users', user.uid);
+            try {
+              const userSnap = await getDoc(userRef);
+              console.log("[XloudID] Checking if user document exists:", userSnap.exists());
+              
+              if (!userSnap.exists()) {
+                console.log("[XloudID] Creating new user document");
+                const userData = {
+                  email: user.email,
+                  createdAt: new Date(),
+                  lastLogin: new Date(),
+                  emailVerified: user.emailVerified,
+                  displayName: user.displayName || null,
+                  photoURL: user.photoURL || null
+                };
+                console.log("[XloudID] User data to be saved:", userData);
+                
+                await setDoc(userRef, userData);
+                console.log("[XloudID] Successfully created user document");
+              } else {
+                // Update last login time
+                await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
+                console.log("[XloudID] Updated existing user document");
+              }
+            } catch (firestoreError) {
+              console.error("[XloudID] Firestore operation error:", firestoreError);
+            }
+
+            // Clean up URL
+            url.searchParams.delete('token');
+            window.history.replaceState({}, document.title, url.pathname);
+            console.log("[XloudID] URL cleaned up");
+          } catch (error) {
+            const authError = error as Error;
+            console.error("[XloudID] Authentication error:", {
+              code: authError.name,
+              message: authError.message,
+              stack: authError.stack
+            });
+          }
+        }
+      }
+    };
+
+    handleAuth();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
