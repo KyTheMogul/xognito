@@ -7,14 +7,16 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, getDoc, writeBatch, collection } from 'firebase/firestore';
-
-const chatHistorySeed = [
-  { id: 1, name: 'Chat with Alice' },
-  { id: 2, name: 'Project X' },
-  { id: 3, name: 'Support Ticket #123' },
-  { id: 4, name: 'Team Standup' },
-];
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { 
+  createConversation, 
+  getConversations, 
+  getMessages, 
+  addMessage, 
+  updateConversationTitle,
+  type ConversationWithId,
+  type MessageWithId
+} from '@/lib/firestore';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -196,15 +198,11 @@ export default function Dashboard() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [input, setInput] = useState('');
-  const [activeConversationId, setActiveConversationId] = useState<number>(chatHistorySeed[0].id);
-  const [chatHistory, setChatHistory] = useState<Conversation[]>(chatHistorySeed);
-  const [conversations, setConversations] = useState<Record<number, Message[]>>({
-    1: [],
-    2: [],
-    3: [],
-    4: [],
-  });
-  const [hoveredChatId, setHoveredChatId] = useState<number | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationWithId[]>([]);
+  const [messages, setMessages] = useState<MessageWithId[]>([]);
+  const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const profileRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -218,10 +216,105 @@ export default function Dashboard() {
   const listenTimeoutRef = useRef<any>(null);
 
   const filteredChats = search
-    ? chatHistory.filter(chat => chat.name.toLowerCase().includes(search.toLowerCase()))
-    : chatHistory;
+    ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
+    : conversations;
 
-  const messages = conversations[activeConversationId] || [];
+  // Load conversations when user is authenticated
+  useEffect(() => {
+    const loadConversations = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
+        const userConversations = await getConversations(user.uid);
+        setConversations(userConversations);
+
+        // If no conversations exist, create a new one
+        if (userConversations.length === 0) {
+          const newConversationId = await createConversation(user.uid);
+          setActiveConversationId(newConversationId);
+        } else {
+          setActiveConversationId(userConversations[0].id);
+        }
+      } catch (error) {
+        console.error('Error loading conversations:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadConversations();
+  }, []);
+
+  // Load messages when active conversation changes
+  useEffect(() => {
+    const loadMessages = async () => {
+      const user = auth.currentUser;
+      if (!user || !activeConversationId) return;
+
+      try {
+        const conversationMessages = await getMessages(user.uid, activeConversationId);
+        setMessages(conversationMessages);
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    };
+
+    loadMessages();
+  }, [activeConversationId]);
+
+  // Handle new chat creation
+  const handleNewChat = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const newConversationId = await createConversation(user.uid);
+      setActiveConversationId(newConversationId);
+      setMessages([]);
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+    }
+  };
+
+  // Handle sending a message
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || !activeConversationId) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userMessage: Omit<Message, 'timestamp'> = {
+      sender: 'user',
+      text: input,
+    };
+
+    try {
+      // Add user message
+      await addMessage(user.uid, activeConversationId, userMessage);
+      setInput('');
+      setUploads([]);
+
+      // If this is the first message, generate a title
+      if (messages.length === 0) {
+        // TODO: Implement AI title generation
+        const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
+        await updateConversationTitle(user.uid, activeConversationId, title);
+      }
+
+      // Add AI response
+      const aiMessage: Omit<Message, 'timestamp'> = {
+        sender: 'ai',
+        text: 'I am processing your request...',
+      };
+      await addMessage(user.uid, activeConversationId, aiMessage);
+
+      // TODO: Implement AI response generation
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -263,122 +356,6 @@ export default function Dashboard() {
 
   function removeUpload(id: string) {
     setUploads(prev => prev.filter(f => f.id !== id));
-  }
-
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim()) return;
-    setConversations(prev => {
-      const prevMsgs = prev[activeConversationId] || [];
-      return {
-        ...prev,
-        [activeConversationId]: [
-          ...prevMsgs,
-          { sender: 'user', text: input, files: uploads },
-        ]
-      };
-    });
-    setInput('');
-    setUploads([]);
-
-    // If greeting, respond instantly
-    if (isSimpleGreeting(input)) {
-      setConversations(prev => {
-        const prevMsgs = prev[activeConversationId] || [];
-        return {
-          ...prev,
-          [activeConversationId]: [
-            ...prevMsgs,
-            { sender: 'ai', text: 'Hey! How can I help?' },
-          ]
-        };
-      });
-      return;
-    }
-    // If feeling inquiry, respond instantly
-    if (isFeelingInquiry(input)) {
-      setConversations(prev => {
-        const prevMsgs = prev[activeConversationId] || [];
-        return {
-          ...prev,
-          [activeConversationId]: [
-            ...prevMsgs,
-            { sender: 'ai', text: 'Just chilling, just working!' },
-          ]
-        };
-      });
-      return;
-    }
-    // Prepare messages for DeepSeek API (system + chat history)
-    const prevMsgs = conversations[activeConversationId] || [];
-    const dsMessages: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-      { role: 'system', content: `You are Xognito, a helpful assistant. Keep your responses concise and to the point. If the user asks for code, provide only the simplest, most basic version by default. Do not show multiple variations or advanced versions unless the user specifically requests them. Always format code with triple backticks and specify the language.` },
-      ...prevMsgs.map(m => ({ role: (m.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', content: m.text })),
-      { role: 'user', content: input },
-    ];
-    // Add an empty AI message for streaming
-    setConversations(prev => {
-      const prevMsgs = prev[activeConversationId] || [];
-      return {
-        ...prev,
-        [activeConversationId]: [
-          ...prevMsgs,
-          { sender: 'ai', text: '', thinking: true },
-        ]
-      };
-    });
-    try {
-      let firstChunk = true;
-      await fetchDeepSeekResponseStream(dsMessages, (chunk) => {
-        setConversations(prev => {
-          const prevMsgs = prev[activeConversationId] || [];
-          // Find the last AI message and append chunk
-          const lastIdx = prevMsgs.length - 1;
-          if (lastIdx < 0 || prevMsgs[lastIdx].sender !== 'ai') return prev;
-          const updatedMsgs = [...prevMsgs];
-          updatedMsgs[lastIdx] = {
-            ...updatedMsgs[lastIdx],
-            text: (updatedMsgs[lastIdx].text || '') + chunk,
-            thinking: false,
-          };
-          return {
-            ...prev,
-            [activeConversationId]: updatedMsgs,
-          };
-        });
-        firstChunk = false;
-      });
-    } catch (err) {
-      setConversations(prev => {
-        const prevMsgs = prev[activeConversationId] || [];
-        // Remove the last AI message and add the error message
-        const msgsWithoutLoading = prevMsgs.slice(0, -1);
-        return {
-          ...prev,
-          [activeConversationId]: [
-            ...msgsWithoutLoading,
-            { sender: 'ai', text: 'Sorry, there was an error contacting DeepSeek.' },
-          ]
-        };
-      });
-    }
-  }
-
-  // Delete conversation handler
-  function handleDeleteConversation(id: number) {
-    setChatHistory(prev => prev.filter(chat => chat.id !== id));
-    setConversations(prev => {
-      const newConvs = { ...prev };
-      delete newConvs[id];
-      return newConvs;
-    });
-    // If the deleted conversation was active, switch to another
-    if (activeConversationId === id) {
-      const remaining = chatHistory.filter(chat => chat.id !== id);
-      if (remaining.length > 0) {
-        setActiveConversationId(remaining[0].id);
-      }
-    }
   }
 
   // Voice-to-text handler
@@ -496,78 +473,20 @@ export default function Dashboard() {
               if (!userSnap.exists()) {
                 console.log("[XloudID] Creating new user document");
                 const userData = {
-                  profile: {
-                    xloudID: user.email?.split('@')[0] || null,
-                    displayName: user.displayName || user.email?.split('@')[0] || null,
-                    email: user.email,
-                    createdAt: new Date(),
-                    plan: 'free',
-                    referralCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-                    isOnboarded: false
-                  },
-                  subscription: {
-                    isActive: false,
-                    plan: 'free',
-                    billingCycleStart: null,
-                    nextBillingDate: null
-                  }
+                  email: user.email,
+                  createdAt: new Date(),
+                  lastLogin: new Date(),
+                  emailVerified: user.emailVerified,
+                  displayName: user.displayName || null,
+                  photoURL: user.photoURL || null
                 };
                 console.log("[XloudID] User data to be saved:", userData);
                 
-                // Create the main user document
                 await setDoc(userRef, userData);
                 console.log("[XloudID] Successfully created user document");
-
-                // Create initial subcollections
-                const batch = writeBatch(db);
-                
-                // Create initial memory
-                const memoryRef = doc(collection(userRef, 'memory'));
-                batch.set(memoryRef, {
-                  type: 'note',
-                  content: 'Welcome to Xognito! This is your first memory.',
-                  createdAt: new Date(),
-                  context: null
-                });
-
-                // Create initial conversation
-                const conversationRef = doc(collection(userRef, 'conversations'));
-                batch.set(conversationRef, {
-                  title: 'Welcome',
-                  createdAt: new Date(),
-                  isPinned: true
-                });
-
-                // Add welcome message to the conversation
-                const messageRef = doc(collection(conversationRef, 'messages'));
-                batch.set(messageRef, {
-                  sender: 'assistant',
-                  text: 'Welcome to Xognito! How can I help you today?',
-                  timestamp: new Date()
-                });
-
-                // Create initial tap
-                const tapRef = doc(collection(userRef, 'taps'));
-                batch.set(tapRef, {
-                  name: 'Quick Summary',
-                  type: 'text',
-                  createdAt: new Date(),
-                  inputExamples: ['Summarize this text', 'Give me the key points'],
-                  config: {
-                    visionEnabled: false,
-                    webEnabled: true,
-                    offlineSupported: true
-                  }
-                });
-
-                // Commit the batch
-                await batch.commit();
-                console.log("[XloudID] Successfully created initial subcollections");
               } else {
                 // Update last login time
-                await setDoc(userRef, { 
-                  'profile.lastLogin': new Date() 
-                }, { merge: true });
+                await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
                 console.log("[XloudID] Updated existing user document");
               }
             } catch (firestoreError) {
@@ -711,14 +630,14 @@ export default function Dashboard() {
                   variant={activeConversationId === chat.id ? 'default' : 'ghost'}
                   className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'}`}
                   onClick={() => setActiveConversationId(chat.id)}
-              >
-                {chat.name}
-              </Button>
+                >
+                  {chat.title}
+                </Button>
                 {/* Trash can icon on hover */}
                 {hoveredChatId === chat.id && (
                   <button
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 transition-colors z-10"
-                    onClick={e => { e.stopPropagation(); handleDeleteConversation(chat.id); }}
+                    onClick={e => { e.stopPropagation(); handleNewChat(); }}
                     aria-label="Delete conversation"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>
