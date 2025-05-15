@@ -15,7 +15,9 @@ import {
   addMessage, 
   updateConversationTitle,
   type ConversationWithId,
-  type MessageWithId
+  type MessageWithId,
+  listenToConversations,
+  listenToMessages
 } from '@/lib/firestore';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
@@ -219,67 +221,33 @@ export default function Dashboard() {
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
     : conversations;
 
-  // Load conversations when user is authenticated
+  // Real-time conversations
   useEffect(() => {
-    const loadConversations = async () => {
-      console.log("[Dashboard] Loading conversations");
-      const user = auth.currentUser;
-      if (!user) {
-        console.log("[Dashboard] No authenticated user found when loading conversations");
-        return;
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const unsubscribe = listenToConversations(user.uid, (convos) => {
+      setConversations(convos);
+      // If no active conversation, set the first one
+      if (!activeConversationId && convos.length > 0) {
+        setActiveConversationId(convos[0].id);
       }
+    });
 
-      try {
-        console.log("[Dashboard] Fetching conversations for user:", user.uid);
-        const userConversations = await getConversations(user.uid);
-        console.log("[Dashboard] Fetched conversations:", userConversations);
-        setConversations(userConversations);
+    return () => unsubscribe();
+  }, [auth.currentUser]);
 
-        // If no conversations exist, create a new one
-        if (userConversations.length === 0) {
-          console.log("[Dashboard] No conversations found, creating new one");
-          const newConversationId = await createConversation(user.uid);
-          console.log("[Dashboard] Created new conversation:", newConversationId);
-          setActiveConversationId(newConversationId);
-        } else {
-          console.log("[Dashboard] Setting active conversation to first conversation:", userConversations[0].id);
-          setActiveConversationId(userConversations[0].id);
-        }
-      } catch (error) {
-        console.error("[Dashboard] Error loading conversations:", error);
-        // If there's an error, try to create a new conversation anyway
-        try {
-          console.log("[Dashboard] Attempting to create new conversation after error");
-          const newConversationId = await createConversation(user.uid);
-          console.log("[Dashboard] Created new conversation after error:", newConversationId);
-          setActiveConversationId(newConversationId);
-        } catch (createError) {
-          console.error("[Dashboard] Failed to create conversation after error:", createError);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadConversations();
-  }, []);
-
-  // Load messages when active conversation changes
+  // Real-time messages
   useEffect(() => {
-    const loadMessages = async () => {
-      const user = auth.currentUser;
-      if (!user || !activeConversationId) return;
+    const user = auth.currentUser;
+    if (!user || !activeConversationId) return;
 
-      try {
-        const conversationMessages = await getMessages(user.uid, activeConversationId);
-        setMessages(conversationMessages);
-      } catch (error) {
-        console.error('Error loading messages:', error);
-      }
-    };
+    const unsubscribe = listenToMessages(user.uid, activeConversationId, (msgs) => {
+      setMessages(msgs);
+    });
 
-    loadMessages();
-  }, [activeConversationId]);
+    return () => unsubscribe();
+  }, [auth.currentUser, activeConversationId]);
 
   // Handle new chat creation
   const handleNewChat = async () => {
@@ -683,9 +651,9 @@ export default function Dashboard() {
                   variant={activeConversationId === chat.id ? 'default' : 'ghost'}
                   className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'}`}
                   onClick={() => setActiveConversationId(chat.id)}
-                >
+              >
                   {chat.title}
-                </Button>
+              </Button>
                 {/* Trash can icon on hover */}
                 {hoveredChatId === chat.id && (
                   <button

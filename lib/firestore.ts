@@ -11,6 +11,10 @@ import {
   orderBy,
   Timestamp,
   serverTimestamp,
+  onSnapshot,
+  QuerySnapshot,
+  DocumentData,
+  Unsubscribe,
 } from 'firebase/firestore';
 
 export interface Message {
@@ -137,5 +141,38 @@ export async function toggleConversationPin(
   await updateDoc(docRef, {
     isPinned,
     updatedAt: serverTimestamp(),
+  });
+}
+
+// Real-time listener for conversations
+export function listenToConversations(
+  userId: string,
+  callback: (conversations: ConversationWithId[]) => void
+): Unsubscribe {
+  const conversationsRef = collection(db, `users/${userId}/conversations`);
+  const q = query(conversationsRef, orderBy('updatedAt', 'desc'));
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const conversations = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as ConversationWithId));
+    callback(conversations);
+  });
+}
+
+// Real-time listener for messages
+export function listenToMessages(
+  userId: string,
+  conversationId: string,
+  callback: (messages: MessageWithId[]) => void
+): Unsubscribe {
+  const messagesRef = collection(db, `users/${userId}/conversations/${conversationId}/messages`);
+  const q = query(messagesRef, orderBy('timestamp', 'asc'));
+  return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+    const messages = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as MessageWithId));
+    callback(messages);
   });
 } 
