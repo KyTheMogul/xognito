@@ -345,6 +345,7 @@ export default function Dashboard() {
         const updatedAiMessage: Omit<Message, 'timestamp'> = {
           sender: 'ai',
           text: aiResponse,
+          thinking: false
         };
         updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
       });
