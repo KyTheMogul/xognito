@@ -222,22 +222,31 @@ export default function Dashboard() {
   // Load conversations when user is authenticated
   useEffect(() => {
     const loadConversations = async () => {
+      console.log("[Dashboard] Loading conversations");
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) {
+        console.log("[Dashboard] No authenticated user found when loading conversations");
+        return;
+      }
 
       try {
+        console.log("[Dashboard] Fetching conversations for user:", user.uid);
         const userConversations = await getConversations(user.uid);
+        console.log("[Dashboard] Fetched conversations:", userConversations);
         setConversations(userConversations);
 
         // If no conversations exist, create a new one
         if (userConversations.length === 0) {
+          console.log("[Dashboard] No conversations found, creating new one");
           const newConversationId = await createConversation(user.uid);
+          console.log("[Dashboard] Created new conversation:", newConversationId);
           setActiveConversationId(newConversationId);
         } else {
+          console.log("[Dashboard] Setting active conversation to first conversation:", userConversations[0].id);
           setActiveConversationId(userConversations[0].id);
         }
       } catch (error) {
-        console.error('Error loading conversations:', error);
+        console.error("[Dashboard] Error loading conversations:", error);
       } finally {
         setIsLoading(false);
       }
@@ -769,7 +778,13 @@ export default function Dashboard() {
         </div>
       )}
       {/* Chat input at bottom */}
-      <form className="fixed bottom-0 left-0 w-full flex justify-center pb-6 z-40 bg-transparent" onSubmit={handleSend}>
+      <form 
+        className="fixed bottom-0 left-0 w-full flex justify-center pb-6 z-40 bg-transparent" 
+        onSubmit={(e) => {
+          console.log("[Dashboard] Form submitted");
+          handleSend(e);
+        }}
+      >
         <div className="flex items-center w-full max-w-2xl bg-black border border-white rounded-full px-4 py-2 gap-2 shadow-lg">
           {/* Upload icon */}
           <button
@@ -794,11 +809,18 @@ export default function Dashboard() {
             placeholder="Type a message..."
             className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400 text-base px-2"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={(e) => {
+              console.log("[Dashboard] Input changed:", e.target.value);
+              setInput(e.target.value);
+            }}
           />
           {/* Send button: only show if input is not empty */}
           {input.trim() && (
-            <button type="submit" className="ml-2 bg-white text-black font-semibold rounded-full px-5 py-2 text-sm shadow hover:bg-zinc-100 transition-colors focus:outline-none">
+            <button 
+              type="submit" 
+              className="ml-2 bg-white text-black font-semibold rounded-full px-5 py-2 text-sm shadow hover:bg-zinc-100 transition-colors focus:outline-none"
+              onClick={() => console.log("[Dashboard] Send button clicked")}
+            >
               Send
             </button>
           )}
