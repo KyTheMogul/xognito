@@ -460,7 +460,25 @@ export default function Dashboard() {
               tokenType: typeof token
             });
             
-            const userCredential = await signInWithCustomToken(auth, token);
+            // Send token to our backend to exchange for a Firebase token
+            const response = await fetch('/api/auth/xloudid', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ token }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to exchange token');
+            }
+
+            const { firebaseToken } = await response.json();
+            console.log("[XloudID] Received Firebase token from backend");
+            
+            // Now use the Firebase token from our backend
+            const userCredential = await signInWithCustomToken(auth, firebaseToken);
             const user = userCredential.user;
             console.log("[XloudID] Successfully signed in user:", {
               uid: user.uid,
