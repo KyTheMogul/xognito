@@ -19,66 +19,91 @@ export default function LandingPage() {
   const proRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get('token');
-      const redirect = url.searchParams.get('redirect');
-      const ALLOWED_REDIRECT_DOMAINS = [
-        "https://xognito.com",
-        "https://www.xognito.com",
-        "https://xognito.vercel.app"
-      ];
-      let validatedRedirectUrl = "https://xognito.com/dashboard";
-      if (redirect) {
-        try {
-          const redirectUrl = new URL(redirect);
-          if (ALLOWED_REDIRECT_DOMAINS.includes(redirectUrl.origin)) {
-            validatedRedirectUrl = redirect;
-          }
-        } catch (e) {
-          // Allow relative paths (e.g., /dashboard)
-          if (redirect.startsWith("/")) {
-            validatedRedirectUrl = redirect;
+    const handleAuth = async () => {
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        const token = url.searchParams.get('token');
+        const redirect = url.searchParams.get('redirect');
+        const ALLOWED_REDIRECT_DOMAINS = [
+          "https://xognito.com",
+          "https://www.xognito.com",
+          "https://xognito.vercel.app"
+        ];
+        let validatedRedirectUrl = "https://xognito.com/dashboard";
+        if (redirect) {
+          try {
+            const redirectUrl = new URL(redirect);
+            if (ALLOWED_REDIRECT_DOMAINS.includes(redirectUrl.origin)) {
+              validatedRedirectUrl = redirect;
+            }
+          } catch (e) {
+            // Allow relative paths (e.g., /dashboard)
+            if (redirect.startsWith("/")) {
+              validatedRedirectUrl = redirect;
+            }
           }
         }
-      }
-      if (token) {
-        console.log("[XloudID] Received token:", token.substring(0, 10) + "...");
-        signInWithCustomToken(auth, token)
-          .then(async (userCredential) => {
+        if (token) {
+          console.log("[XloudID] Received token:", token.substring(0, 10) + "...");
+          try {
+            const userCredential = await signInWithCustomToken(auth, token);
             const user = userCredential.user;
-            console.log("[XloudID] Successfully signed in user:", user.uid);
+            console.log("[XloudID] Successfully signed in user:", {
+              uid: user.uid,
+              email: user.email,
+              emailVerified: user.emailVerified
+            });
+
             // Create user doc in Firestore if not exists
             const userRef = doc(db, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
-            console.log("[XloudID] Checking if user document exists:", userSnap.exists());
-            if (!userSnap.exists()) {
-              console.log("[XloudID] Creating new user document");
-              try {
-                await setDoc(userRef, {
+            try {
+              const userSnap = await getDoc(userRef);
+              console.log("[XloudID] Checking if user document exists:", userSnap.exists());
+              
+              if (!userSnap.exists()) {
+                console.log("[XloudID] Creating new user document");
+                const userData = {
                   email: user.email,
                   createdAt: new Date(),
-                  // Add any other default fields here
-                });
+                  lastLogin: new Date(),
+                  emailVerified: user.emailVerified,
+                  displayName: user.displayName || null,
+                  photoURL: user.photoURL || null
+                };
+                console.log("[XloudID] User data to be saved:", userData);
+                
+                await setDoc(userRef, userData);
                 console.log("[XloudID] Successfully created user document");
-              } catch (error) {
-                console.error("[XloudID] Error creating user document:", error);
+              } else {
+                // Update last login time
+                await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
+                console.log("[XloudID] Updated existing user document");
               }
+            } catch (firestoreError) {
+              console.error("[XloudID] Firestore operation error:", firestoreError);
+              // Continue with redirect even if Firestore operation fails
             }
-            // Optionally, clean up the URL
+
+            // Clean up URL and redirect
             url.searchParams.delete('token');
             window.history.replaceState({}, document.title, url.pathname + url.search);
             console.log("[XloudID] Redirecting to:", validatedRedirectUrl);
             window.location.href = validatedRedirectUrl;
-          })
-          .catch((err) => {
-            // Handle error (invalid/expired token, etc.)
-            console.error('[XloudID] Firebase sign-in error:', err);
-          });
-      } else {
-        console.log("[XloudID] No token found in URL");
+          } catch (error) {
+            const authError = error as Error;
+            console.error("[XloudID] Authentication error:", {
+              code: authError.name,
+              message: authError.message,
+              stack: authError.stack
+            });
+          }
+        } else {
+          console.log("[XloudID] No token found in URL");
+        }
       }
-    }
+    };
+
+    handleAuth();
   }, []);
 
   return (
