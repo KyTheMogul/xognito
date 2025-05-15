@@ -280,10 +280,23 @@ export default function Dashboard() {
   // Handle sending a message
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !activeConversationId) return;
+    console.log("[Dashboard] Attempting to send message:", { input, activeConversationId });
+    
+    if (!input.trim() || !activeConversationId) {
+      console.log("[Dashboard] Cannot send message:", { 
+        hasInput: !!input.trim(), 
+        hasActiveConversation: !!activeConversationId 
+      });
+      return;
+    }
 
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      console.log("[Dashboard] No authenticated user found");
+      return;
+    }
+
+    console.log("[Dashboard] User authenticated:", { uid: user.uid });
 
     const userMessage: Omit<Message, 'timestamp'> = {
       sender: 'user',
@@ -291,28 +304,35 @@ export default function Dashboard() {
     };
 
     try {
+      console.log("[Dashboard] Adding user message to Firestore");
       // Add user message
       await addMessage(user.uid, activeConversationId, userMessage);
+      console.log("[Dashboard] User message added successfully");
+      
       setInput('');
       setUploads([]);
 
       // If this is the first message, generate a title
       if (messages.length === 0) {
+        console.log("[Dashboard] First message, updating conversation title");
         // TODO: Implement AI title generation
         const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
         await updateConversationTitle(user.uid, activeConversationId, title);
+        console.log("[Dashboard] Conversation title updated");
       }
 
       // Add AI response
+      console.log("[Dashboard] Adding AI response placeholder");
       const aiMessage: Omit<Message, 'timestamp'> = {
         sender: 'ai',
         text: 'I am processing your request...',
       };
       await addMessage(user.uid, activeConversationId, aiMessage);
+      console.log("[Dashboard] AI response placeholder added");
 
       // TODO: Implement AI response generation
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error("[Dashboard] Error sending message:", error);
     }
   };
 
