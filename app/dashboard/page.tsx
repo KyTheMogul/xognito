@@ -247,6 +247,15 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("[Dashboard] Error loading conversations:", error);
+        // If there's an error, try to create a new conversation anyway
+        try {
+          console.log("[Dashboard] Attempting to create new conversation after error");
+          const newConversationId = await createConversation(user.uid);
+          console.log("[Dashboard] Created new conversation after error:", newConversationId);
+          setActiveConversationId(newConversationId);
+        } catch (createError) {
+          console.error("[Dashboard] Failed to create conversation after error:", createError);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -275,14 +284,19 @@ export default function Dashboard() {
   // Handle new chat creation
   const handleNewChat = async () => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      console.log("[Dashboard] No authenticated user found when creating new chat");
+      return;
+    }
 
     try {
+      console.log("[Dashboard] Creating new conversation");
       const newConversationId = await createConversation(user.uid);
+      console.log("[Dashboard] Created new conversation:", newConversationId);
       setActiveConversationId(newConversationId);
       setMessages([]);
     } catch (error) {
-      console.error('Error creating new chat:', error);
+      console.error("[Dashboard] Error creating new chat:", error);
     }
   };
 
@@ -291,11 +305,8 @@ export default function Dashboard() {
     e.preventDefault();
     console.log("[Dashboard] Attempting to send message:", { input, activeConversationId });
     
-    if (!input.trim() || !activeConversationId) {
-      console.log("[Dashboard] Cannot send message:", { 
-        hasInput: !!input.trim(), 
-        hasActiveConversation: !!activeConversationId 
-      });
+    if (!input.trim()) {
+      console.log("[Dashboard] Cannot send message: No input text");
       return;
     }
 
@@ -303,6 +314,19 @@ export default function Dashboard() {
     if (!user) {
       console.log("[Dashboard] No authenticated user found");
       return;
+    }
+
+    // If no active conversation, create one
+    if (!activeConversationId) {
+      console.log("[Dashboard] No active conversation, creating new one");
+      try {
+        const newConversationId = await createConversation(user.uid);
+        console.log("[Dashboard] Created new conversation:", newConversationId);
+        setActiveConversationId(newConversationId);
+      } catch (error) {
+        console.error("[Dashboard] Failed to create new conversation:", error);
+        return;
+      }
     }
 
     console.log("[Dashboard] User authenticated:", { uid: user.uid });
@@ -315,7 +339,7 @@ export default function Dashboard() {
     try {
       console.log("[Dashboard] Adding user message to Firestore");
       // Add user message
-      await addMessage(user.uid, activeConversationId, userMessage);
+      await addMessage(user.uid, activeConversationId!, userMessage);
       console.log("[Dashboard] User message added successfully");
       
       setInput('');
@@ -326,7 +350,7 @@ export default function Dashboard() {
         console.log("[Dashboard] First message, updating conversation title");
         // TODO: Implement AI title generation
         const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
-        await updateConversationTitle(user.uid, activeConversationId, title);
+        await updateConversationTitle(user.uid, activeConversationId!, title);
         console.log("[Dashboard] Conversation title updated");
       }
 
@@ -336,7 +360,7 @@ export default function Dashboard() {
         sender: 'ai',
         text: 'I am processing your request...',
       };
-      await addMessage(user.uid, activeConversationId, aiMessage);
+      await addMessage(user.uid, activeConversationId!, aiMessage);
       console.log("[Dashboard] AI response placeholder added");
 
       // TODO: Implement AI response generation
