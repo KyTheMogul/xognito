@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 // Validate required environment variables
 const requiredEnvVars = {
@@ -36,7 +36,7 @@ console.log("[Firebase] Config validation:", {
   hasAppId: !!firebaseConfig.appId
 });
 
-let app;
+let app: FirebaseApp;
 try {
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   console.log("[Firebase] App initialized successfully");
@@ -45,7 +45,7 @@ try {
   throw error;
 }
 
-let auth;
+let auth: Auth;
 try {
   auth = getAuth(app);
   console.log("[Firebase] Auth initialized successfully");
@@ -54,7 +54,7 @@ try {
   throw error;
 }
 
-let db;
+let db: Firestore;
 try {
   db = getFirestore(app);
   console.log("[Firebase] Firestore initialized successfully");
