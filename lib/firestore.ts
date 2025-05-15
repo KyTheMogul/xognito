@@ -15,6 +15,7 @@ import {
   QuerySnapshot,
   DocumentData,
   Unsubscribe,
+  writeBatch,
 } from 'firebase/firestore';
 
 export interface Message {
@@ -175,4 +176,17 @@ export function listenToMessages(
     } as MessageWithId));
     callback(messages);
   });
+}
+
+// Delete a conversation and its messages
+export async function deleteConversation(userId: string, conversationId: string): Promise<void> {
+  const conversationRef = doc(db, `users/${userId}/conversations`, conversationId);
+  const messagesRef = collection(db, `users/${userId}/conversations/${conversationId}/messages`);
+  const messagesSnapshot = await getDocs(messagesRef);
+  const batch = writeBatch(db);
+  messagesSnapshot.docs.forEach(doc => {
+    batch.delete(doc.ref);
+  });
+  batch.delete(conversationRef);
+  await batch.commit();
 } 
