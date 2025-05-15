@@ -2,6 +2,22 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+// Validate required environment variables
+const requiredEnvVars = {
+  NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error("[Firebase] Missing required environment variables:", missingVars);
+  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+}
+
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -11,7 +27,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-console.log("[XloudID] Firebase config:", {
+console.log("[Firebase] Config validation:", {
   hasApiKey: !!firebaseConfig.apiKey,
   hasAuthDomain: !!firebaseConfig.authDomain,
   hasProjectId: !!firebaseConfig.projectId,
@@ -20,13 +36,31 @@ console.log("[XloudID] Firebase config:", {
   hasAppId: !!firebaseConfig.appId
 });
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-console.log("[XloudID] Firebase app initialized:", !!app);
+let app;
+try {
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  console.log("[Firebase] App initialized successfully");
+} catch (error) {
+  console.error("[Firebase] App initialization error:", error);
+  throw error;
+}
 
-const auth = getAuth(app);
-console.log("[XloudID] Firebase auth initialized:", !!auth);
+let auth;
+try {
+  auth = getAuth(app);
+  console.log("[Firebase] Auth initialized successfully");
+} catch (error) {
+  console.error("[Firebase] Auth initialization error:", error);
+  throw error;
+}
 
-const db = getFirestore(app);
-console.log("[XloudID] Firebase Firestore initialized:", !!db);
+let db;
+try {
+  db = getFirestore(app);
+  console.log("[Firebase] Firestore initialized successfully");
+} catch (error) {
+  console.error("[Firebase] Firestore initialization error:", error);
+  throw error;
+}
 
 export { app, auth, db }; 
