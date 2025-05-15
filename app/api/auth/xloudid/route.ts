@@ -2,12 +2,28 @@ import { NextResponse } from 'next/server';
 import { auth } from 'firebase-admin';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 
+// Validate required environment variables
+const requiredEnvVars = {
+  FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
+  FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+  FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error("[XloudID API] Missing required environment variables:", missingVars);
+  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+}
+
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
   try {
     console.log("[XloudID API] Initializing Firebase Admin with config:", {
-      hasProjectId: !!process.env.FIREBASE_ADMIN_PROJECT_ID,
-      hasClientEmail: !!process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
       hasPrivateKey: !!process.env.FIREBASE_ADMIN_PRIVATE_KEY,
     });
 
