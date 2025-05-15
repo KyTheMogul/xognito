@@ -93,8 +93,19 @@ export default function LandingPage() {
             // Clean up URL and redirect
             url.searchParams.delete('token');
             window.history.replaceState({}, document.title, url.pathname + url.search);
-            console.log("[XloudID] Redirecting to:", validatedRedirectUrl);
-            window.location.href = validatedRedirectUrl;
+            console.log("[XloudID] About to redirect to:", validatedRedirectUrl);
+            
+            // Store current URL and token info in localStorage
+            localStorage.setItem('xloudid_auth_info', JSON.stringify({
+              timestamp: new Date().toISOString(),
+              token: token.substring(0, 10) + "...",
+              redirectUrl: validatedRedirectUrl
+            }));
+            
+            // Add a small delay before redirect to ensure logs are visible
+            setTimeout(() => {
+              window.location.href = validatedRedirectUrl;
+            }, 1000);
           } catch (error) {
             const authError = error as Error;
             console.error("[XloudID] Authentication error:", {
@@ -102,9 +113,29 @@ export default function LandingPage() {
               message: authError.message,
               stack: authError.stack
             });
+            // Store error logs
+            localStorage.setItem('xloudid_error', JSON.stringify({
+              code: authError.name,
+              message: authError.message,
+              stack: authError.stack
+            }));
           }
         } else {
           console.log("[XloudID] No token found in URL");
+          // Check if we're on the dashboard page
+          if (window.location.pathname === '/dashboard') {
+            console.log("[XloudID] On dashboard page, checking for stored logs");
+            const storedLogs = localStorage.getItem('xloudid_logs');
+            const storedError = localStorage.getItem('xloudid_error');
+            if (storedLogs) {
+              console.log("[XloudID] Previous logs:", JSON.parse(storedLogs));
+              localStorage.removeItem('xloudid_logs');
+            }
+            if (storedError) {
+              console.error("[XloudID] Previous error:", JSON.parse(storedError));
+              localStorage.removeItem('xloudid_error');
+            }
+          }
         }
       }
     };
