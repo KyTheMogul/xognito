@@ -326,7 +326,8 @@ export default function Dashboard() {
       console.log("[Dashboard] Adding AI response placeholder");
       const aiMessage: Omit<Message, 'timestamp'> = {
         sender: 'ai',
-        text: 'I am processing your request...',
+        text: '...',
+        thinking: true
       };
       const aiMessageId = await addMessage(user.uid, activeConversationId!, aiMessage);
       console.log("[Dashboard] AI response placeholder added");
