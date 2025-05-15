@@ -471,7 +471,8 @@ export default function Dashboard() {
 
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.message || 'Failed to exchange token');
+              console.error("[XloudID] API Error Response:", errorData);
+              throw new Error(errorData.details || errorData.message || 'Failed to exchange token');
             }
 
             const { firebaseToken } = await response.json();
