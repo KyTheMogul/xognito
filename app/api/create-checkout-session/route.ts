@@ -227,12 +227,15 @@ export async function POST(req: Request) {
 
     // Create checkout session
     try {
-      console.log('[Checkout] Creating checkout session:', {
+      // Log all required data for debugging
+      console.log('[Checkout] Required data check:', {
         customerId,
         plan,
         baseUrl,
         planDetails,
-        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7)
+        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7),
+        hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+        hasFirebaseConfig: !!process.env.FIREBASE_ADMIN_PROJECT_ID
       });
 
       // Validate required data
@@ -245,9 +248,12 @@ export async function POST(req: Request) {
       if (!baseUrl) {
         throw new Error('Missing baseUrl');
       }
+      if (!process.env.STRIPE_SECRET_KEY) {
+        throw new Error('Missing Stripe secret key');
+      }
 
       // Create the session with more detailed configuration
-      const session = await stripe.checkout.sessions.create({
+      const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         customer: customerId,
         payment_method_types: ['card'],
         line_items: [
@@ -279,12 +285,26 @@ export async function POST(req: Request) {
           customerId
         },
         allow_promotion_codes: true,
-        billing_address_collection: 'auto',
+        billing_address_collection: 'auto' as const,
         customer_update: {
           address: 'auto',
           name: 'auto'
         }
+      };
+
+      console.log('[Checkout] Creating session with config:', {
+        ...sessionConfig,
+        customer: customerId, // Log customer ID separately
+        line_items: sessionConfig.line_items?.map(item => ({
+          ...item,
+          price_data: item.price_data ? {
+            ...item.price_data,
+            unit_amount: item.price_data.unit_amount
+          } : undefined
+        }))
       });
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
 
       console.log('[Checkout] Session created successfully:', { 
         sessionId: session.id,
@@ -325,6 +345,7 @@ export async function POST(req: Request) {
         url: session.url
       });
     } catch (error) {
+      // Log detailed error information
       console.error('[Checkout] Error creating checkout session:', {
         error,
         message: (error as any).message,
@@ -332,14 +353,24 @@ export async function POST(req: Request) {
         code: (error as any).code,
         customerId,
         plan,
-        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7)
+        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7),
+        hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+        hasFirebaseConfig: !!process.env.FIREBASE_ADMIN_PROJECT_ID
       });
+
+      // Return more detailed error response
       return NextResponse.json(
         { 
           error: 'Error creating checkout session',
           details: (error as any).message,
           type: (error as any).type,
-          code: (error as any).code
+          code: (error as any).code,
+          debug: {
+            hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+            hasFirebaseConfig: !!process.env.FIREBASE_ADMIN_PROJECT_ID,
+            customerId: !!customerId,
+            plan: !!plan
+          }
         },
         { status: 500 }
       );
