@@ -51,21 +51,28 @@ export async function canSendMessage(uid: string): Promise<MessageCheck> {
 }
 
 export async function incrementMessageCount(uid: string): Promise<void> {
-  const usageRef = doc(db, 'users', uid, 'usageStats', 'current');
-  const usageDoc = await getDoc(usageRef);
-  
-  if (!usageDoc.exists()) {
-    await setDoc(usageRef, {
-      messagesToday: 1,
-      filesUploaded: 0,
-      lastReset: Timestamp.fromDate(new Date())
-    });
-    return;
-  }
+  try {
+    const usageRef = doc(db, 'users', uid, 'usageStats', 'current');
+    const usageDoc = await getDoc(usageRef);
+    
+    if (!usageDoc.exists()) {
+      // Create new document with initial count of 1
+      await setDoc(usageRef, {
+        messagesToday: 1,
+        filesUploaded: 0,
+        lastReset: Timestamp.fromDate(new Date())
+      });
+      return;
+    }
 
-  await updateDoc(usageRef, {
-    messagesToday: increment(1)
-  });
+    // Update existing document
+    await updateDoc(usageRef, {
+      messagesToday: increment(1)
+    });
+  } catch (error) {
+    console.error('Error incrementing message count:', error);
+    throw error;
+  }
 }
 
 export async function canUploadFile(uid: string): Promise<boolean> {
