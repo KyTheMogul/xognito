@@ -46,18 +46,13 @@ async function generateMemorySummary(message: string): Promise<MemorySummary> {
       return generateFallbackSummary(message);
     }
 
-    const prompt = `Analyze this message and create a concise memory summary:
+    const prompt = `Analyze this message and create a concise memory summary. Return ONLY a JSON object with no markdown formatting or backticks:
 Message: "${message}"
 
-Provide a JSON response with:
-1. summary: A brief, reusable summary (max 100 chars)
-2. topics: Array of 2-4 relevant topics
-3. importanceScore: Number between 0-1
-
-Example response:
+Required JSON format:
 {
-  "summary": "User is building a health tracking app",
-  "topics": ["health", "app development", "tracking"],
+  "summary": "A brief, reusable summary (max 100 chars)",
+  "topics": ["topic1", "topic2", "topic3"],
   "importanceScore": 0.8
 }`;
 
@@ -83,7 +78,9 @@ Example response:
     const content = data.choices[0].message.content;
     
     try {
-      return JSON.parse(content) as MemorySummary;
+      // Clean the content to ensure it's valid JSON
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      return JSON.parse(cleanContent) as MemorySummary;
     } catch (e) {
       console.error("[Memory] Failed to parse memory summary:", e);
       return generateFallbackSummary(message);
