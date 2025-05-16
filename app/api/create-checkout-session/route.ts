@@ -1,7 +1,30 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
+
+// Initialize Firebase Admin if not already initialized
+let adminDb: Firestore;
+try {
+  if (!getApps().length) {
+    const app = initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+    console.log('[Checkout] Firebase Admin initialized successfully');
+  }
+  adminDb = getFirestore();
+} catch (error) {
+  console.error('[Checkout] Firebase Admin initialization failed:', {
+    error,
+    message: (error as any).message,
+    code: (error as any).code
+  });
+  throw new Error('Firebase Admin initialization failed');
+}
 
 // Log Stripe configuration (without exposing the full key)
 const stripeKeyPrefix = process.env.STRIPE_SECRET_KEY?.substring(0, 7) || 'missing';
@@ -75,10 +98,11 @@ export async function POST(req: Request) {
 
     // Verify user exists in Firestore
     try {
-      const userRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userRef);
+      console.log('[Checkout] Checking user in Firestore:', { userId });
+      const userRef = adminDb.collection('users').doc(userId);
+      const userDoc = await userRef.get();
       
-      if (!userDoc.exists()) {
+      if (!userDoc.exists) {
         console.error('[Checkout] User not found in Firestore:', { userId });
         return NextResponse.json(
           { error: 'User not found' },
@@ -87,17 +111,57 @@ export async function POST(req: Request) {
       }
 
       // Update user's subscription status
-      await setDoc(userRef, {
-        subscriptionStatus: 'pending',
-        selectedPlan: plan,
-        lastUpdated: new Date().toISOString()
-      }, { merge: true });
+      try {
+        const userData = userDoc.data();
+        console.log('[Checkout] Current user data:', { 
+          userId,
+          existingData: userData 
+        });
 
-      console.log('[Checkout] Updated user subscription status:', { userId, plan });
+        const updateData = {
+          ...userData,
+          subscriptionStatus: 'pending',
+          selectedPlan: plan,
+          lastUpdated: new Date().toISOString()
+        };
+
+        console.log('[Checkout] Updating user with data:', { 
+          userId,
+          updateData 
+        });
+
+        await userRef.set(updateData, { merge: true });
+        console.log('[Checkout] Successfully updated user subscription status:', { userId, plan });
+      } catch (updateError) {
+        console.error('[Checkout] Error updating user subscription:', {
+          error: updateError,
+          userId,
+          plan,
+          message: (updateError as any).message,
+          code: (updateError as any).code
+        });
+        return NextResponse.json(
+          { 
+            error: 'Error updating user subscription',
+            details: (updateError as any).message,
+            code: (updateError as any).code
+          },
+          { status: 500 }
+        );
+      }
     } catch (error) {
-      console.error('[Checkout] Error updating Firestore:', error);
+      console.error('[Checkout] Error accessing Firestore:', {
+        error,
+        userId,
+        message: (error as any).message,
+        code: (error as any).code
+      });
       return NextResponse.json(
-        { error: 'Error updating user subscription', details: (error as any).message },
+        { 
+          error: 'Error accessing user data',
+          details: (error as any).message,
+          code: (error as any).code
+        },
         { status: 500 }
       );
     }
@@ -111,11 +175,19 @@ export async function POST(req: Request) {
         limit: 100, // Get more customers to search through
       });
       
+      console.log('[Checkout] Found customers:', { 
+        count: customers.data.length,
+        hasMore: customers.has_more
+      });
+      
       const existingCustomer = customers.data.find(c => c.metadata?.userId === userId);
       
       if (existingCustomer) {
         customerId = existingCustomer.id;
-        console.log('[Checkout] Found existing customer:', { customerId });
+        console.log('[Checkout] Found existing customer:', { 
+          customerId,
+          metadata: existingCustomer.metadata
+        });
       } else {
         console.log('[Checkout] Creating new customer:', { userId });
         const customer = await stripe.customers.create({
@@ -124,12 +196,26 @@ export async function POST(req: Request) {
           },
         });
         customerId = customer.id;
-        console.log('[Checkout] Created new customer:', { customerId });
+        console.log('[Checkout] Created new customer:', { 
+          customerId,
+          metadata: customer.metadata
+        });
       }
     } catch (error) {
-      console.error('[Checkout] Error with Stripe customer:', error);
+      console.error('[Checkout] Error with Stripe customer:', {
+        error,
+        message: (error as any).message,
+        type: (error as any).type,
+        code: (error as any).code,
+        userId
+      });
       return NextResponse.json(
-        { error: 'Error creating/retrieving customer', details: (error as any).message },
+        { 
+          error: 'Error creating/retrieving customer',
+          details: (error as any).message,
+          type: (error as any).type,
+          code: (error as any).code
+        },
         { status: 500 }
       );
     }
@@ -144,7 +230,8 @@ export async function POST(req: Request) {
       console.log('[Checkout] Creating checkout session:', {
         customerId,
         plan,
-        baseUrl
+        baseUrl,
+        planDetails
       });
 
       const session = await stripe.checkout.sessions.create({
@@ -175,10 +262,17 @@ export async function POST(req: Request) {
         },
       });
 
+      console.log('[Checkout] Session created successfully:', { 
+        sessionId: session.id,
+        customerId: session.customer,
+        status: session.status,
+        url: session.url
+      });
+
       // Store checkout session in Firestore
       try {
-        const sessionRef = doc(db, 'checkout_sessions', session.id);
-        await setDoc(sessionRef, {
+        const sessionRef = adminDb.collection('checkout_sessions').doc(session.id);
+        await sessionRef.set({
           userId,
           customerId,
           plan,
@@ -188,18 +282,24 @@ export async function POST(req: Request) {
         });
         console.log('[Checkout] Stored checkout session in Firestore:', { sessionId: session.id });
       } catch (error) {
-        console.error('[Checkout] Error storing checkout session in Firestore:', error);
+        console.error('[Checkout] Error storing checkout session in Firestore:', {
+          error,
+          message: (error as any).message,
+          code: (error as any).code,
+          sessionId: session.id
+        });
         // Continue even if Firestore update fails - we can handle this in the webhook
       }
 
-      console.log('[Checkout] Session created successfully:', { sessionId: session.id });
       return NextResponse.json({ sessionId: session.id });
     } catch (error) {
       console.error('[Checkout] Error creating checkout session:', {
-        error: error,
+        error,
         message: (error as any).message,
         type: (error as any).type,
-        code: (error as any).code
+        code: (error as any).code,
+        customerId,
+        plan
       });
       return NextResponse.json(
         { 
