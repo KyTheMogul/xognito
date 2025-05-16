@@ -30,6 +30,8 @@ import {
 import MemoryNotification from '../../components/MemoryNotification';
 import { Timestamp } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { toast } from 'react-hot-toast';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -773,7 +775,7 @@ When responding:
     return () => unsubscribe();
   }, [auth.currentUser]);
 
-  const handlePlanChange = async (newPlan: 'pro' | 'pro_plus') => {
+  const handlePlanChange = async (plan: string) => {
     const user = auth.currentUser;
     if (!user) {
       console.error('[Dashboard] No user found');
@@ -781,51 +783,20 @@ When responding:
     }
 
     try {
-      console.log('[Dashboard] Initiating plan change:', {
-        plan: newPlan,
-        userId: user.uid
-      });
-
-      // Create Stripe Checkout Session
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          plan: newPlan,
-          userId: user.uid
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[Dashboard] Checkout session creation failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-        throw new Error(`Failed to create checkout session: ${errorData.error || response.statusText}`);
-      }
-
-      const { sessionId } = await response.json();
-      console.log('[Dashboard] Checkout session created:', { sessionId });
-
+      console.log('[Dashboard] Initiating plan change:', { plan, userId: user.uid });
+      
+      // Call Firebase Function
+      const functions = getFunctions();
+      const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
+      
+      const result = await createCheckoutSession({ plan, userId: user.uid });
+      const { url } = result.data as { url: string };
+      
       // Redirect to Stripe Checkout
-      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-      if (!stripe) {
-        console.error('[Dashboard] Stripe failed to load');
-        throw new Error('Stripe failed to load');
-      }
-
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-      if (error) {
-        console.error('[Dashboard] Stripe redirect error:', error);
-        throw error;
-      }
+      window.location.href = url;
     } catch (error) {
       console.error('[Dashboard] Error initiating plan change:', error);
-      // Show error notification to user
+      toast.error('Failed to initiate plan change. Please try again.');
     }
   };
 
