@@ -1087,7 +1087,7 @@ When responding:
               </div>
             )}
 
-            {/* Add family member button */}
+            {/* Add family member button - only for pro users */}
             <div className="relative">
               <Button
                 variant="ghost"
@@ -1109,7 +1109,7 @@ When responding:
           </>
         )}
 
-        {/* Profile picture and menu */}
+        {/* Profile picture and menu - always visible */}
         <div className="relative">
           <button
             onClick={() => setProfileMenuOpen((v) => !v)}
