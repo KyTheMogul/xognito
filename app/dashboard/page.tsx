@@ -341,6 +341,8 @@ export default function Dashboard() {
   }>({ messagesToday: 0, filesUploaded: 0, remaining: 25 });
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [groupModalMode, setGroupModalMode] = useState<'join' | 'create'>('join');
 
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
@@ -1088,64 +1090,64 @@ When responding:
             )}
 
             {/* Add family member button - only for pro users */}
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
-                onMouseEnter={() => setShowTooltip(true)}
-                onMouseLeave={() => setShowTooltip(false)}
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
                 onClick={() => setShowInviteModal(true)}
-                aria-label="Add family member"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              </Button>
-              {showTooltip && (
-                <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
-                  Add family member
-                </div>
-              )}
+            aria-label="Add family member"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </Button>
+          {showTooltip && (
+            <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
+              Add family member
             </div>
+          )}
+        </div>
           </>
         )}
 
         {/* Profile picture and menu - always visible */}
         <div className="relative">
-          <button
-            onClick={() => setProfileMenuOpen((v) => !v)}
-            className="focus:outline-none"
-          >
-            <img
-              src={USER_PROFILE}
-              alt="Profile"
+        <button
+          onClick={() => setProfileMenuOpen((v) => !v)}
+          className="focus:outline-none"
+        >
+          <img
+            src={USER_PROFILE}
+            alt="Profile"
               className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer hover:opacity-90 transition-opacity"
-            />
-          </button>
-          {profileMenuOpen && (
-            <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
-              <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
-              <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
+          />
+        </button>
+        {profileMenuOpen && (
+          <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
+            <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
+            <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
                 {userSubscription?.plan === 'free' ? 'Free Plan' : 'Pro Plan'}
-              </div>
-              <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
-                Manage Subscription
-              </Button>
-              <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-                Settings
-              </Button>
+            </div>
+            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
+              Manage Subscription
+            </Button>
+            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              Settings
+            </Button>
               <Button 
                 className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" 
                 variant="ghost"
                 onClick={() => signOut(auth)}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-                Logout
-              </Button>
-            </div>
-          )}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+              Logout
+            </Button>
+          </div>
+        )}
         </div>
       </div>
       {/* Sidebar */}
@@ -1177,6 +1179,22 @@ When responding:
             + New Chat
           </Button>
         </div>
+
+        {/* Groups header with + icon */}
+        <div className="flex items-center justify-between px-6 py-3">
+          <div className="text-zinc-300 font-bold text-sm tracking-wide">Groups</div>
+          <button
+            onClick={() => setShowGroupModal(true)}
+            className="text-zinc-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
+            aria-label="Create or join group"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+
         {/* History header */}
         <div className="text-zinc-300 font-bold px-6 py-3 text-sm tracking-wide">History</div>
         {/* Chat history list */}
@@ -1195,11 +1213,11 @@ When responding:
                   variant={activeConversationId === chat.id ? 'default' : 'ghost'}
                   className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'}`}
                   onClick={() => setActiveConversationId(chat.id)}
-                >
+              >
                   <div className="truncate overflow-hidden whitespace-nowrap group-hover:animate-slide-text">
                     {chat.title}
                   </div>
-                </Button>
+              </Button>
                 {/* Trash can icon on hover */}
                 {hoveredChatId === chat.id && (
                   <button
@@ -1787,6 +1805,84 @@ When responding:
       <Suspense>
         <InvitationNotification />
       </Suspense>
+
+      {/* Add Group Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-zinc-900/95 rounded-2xl shadow-2xl p-8 w-full max-w-md relative border border-zinc-700">
+            <button 
+              className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors"
+              onClick={() => setShowGroupModal(false)}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            {/* Toggle Switch */}
+            <div className="flex justify-center mb-8">
+              <div className="bg-zinc-800 rounded-full p-1 flex gap-1">
+                <button
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    groupModalMode === 'join' 
+                      ? 'bg-white text-black' 
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                  onClick={() => setGroupModalMode('join')}
+                >
+                  Join
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    groupModalMode === 'create' 
+                      ? 'bg-white text-black' 
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                  onClick={() => setGroupModalMode('create')}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+
+            {groupModalMode === 'join' ? (
+              <div className="space-y-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Enter Group Code"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-full px-4 py-3 text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <Button className="w-full bg-white text-black hover:bg-zinc-100 font-semibold rounded-full py-3">
+                  Find Group
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Name For Group"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <textarea
+                    placeholder="Group Description (optional)"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24"
+                  />
+                </div>
+                <p className="text-zinc-400 text-sm text-center">
+                  Groups are limited to 8 member capacity currently.
+                </p>
+                <Button className="w-full bg-white text-black hover:bg-zinc-100 font-semibold rounded-full py-3">
+                  Create Group
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
