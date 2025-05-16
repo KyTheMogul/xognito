@@ -4,6 +4,10 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals = [...(config.externals || []), 'firebase-functions', 'firebase-admin'];
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [...(config.watchOptions?.ignored || []), '**/firebase/functions/**']
+      };
     }
     return config;
   },
@@ -11,17 +15,7 @@ const nextConfig = {
     serverComponentsExternalPackages: ['firebase-functions', 'firebase-admin']
   },
   // Exclude Firebase Functions from the build
-  transpilePackages: [],
-  // Ignore Firebase Functions directory
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.watchOptions = {
-        ...config.watchOptions,
-        ignored: [...(config.watchOptions?.ignored || []), '**/firebase/functions/**']
-      };
-    }
-    return config;
-  }
+  transpilePackages: []
 }
 
 module.exports = nextConfig 

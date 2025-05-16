@@ -30,8 +30,5 @@
     "deploymentEnabled": {
       "main": true
     }
-  },
-  "ignore": [
-    "firebase/functions/**"
-  ]
+  }
 } 
