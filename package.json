@@ -23,6 +23,7 @@
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",
     "react-syntax-highlighter": "^15.6.1",
+    "resend": "^4.5.1",
     "stripe": "^18.1.0",
     "tailwind-merge": "^3.3.0"
   },

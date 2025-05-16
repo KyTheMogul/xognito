@@ -9,18 +9,19 @@ service cloud.firestore {
     
     // Helper function to check if user owns the document
     function isOwner(userId) {
-      return isAuthenticated() && (
-        request.auth.uid == userId || 
-        request.auth.token.user_id == userId ||
-        request.auth.token.sub == userId ||
-        request.auth.token.provider == 'xloudid' ||
-        userId.matches('^xloudid_.*$')
-      );
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isInvitedUser() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.isInvitedUser == true;
     }
 
     // Users collection
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
       
       // Nested conversations collection
       match /conversations/{conversationId} {
@@ -37,15 +38,37 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
-      // Nested subscription collection
-      match /subscription/{subscriptionId} {
-        allow read, write: if isOwner(userId);
+      // User's subscription
+      match /subscription/{docId} {
+        allow read: if isAuthenticated() && (
+          isOwner(userId) || 
+          isInvitedUser() && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.invitedBy == userId
+        );
+        allow write: if isOwner(userId);
       }
 
       // Nested usageStats collection
       match /usageStats/{statsId} {
         allow read, write: if isOwner(userId);
       }
+    }
+
+    // Invitations collection
+    match /invitations/{inviteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.plan == 'pro';
+      
+      allow update: if isAuthenticated() && (
+        // Allow update if the user is accepting their own invitation
+        resource.data.email == request.auth.token.email ||
+        // Or if they're the inviter
+        resource.data.inviterId == request.auth.uid
+      );
+      
+      allow delete: if isAuthenticated() && resource.data.inviterId == request.auth.uid;
     }
 
     // Checkout sessions collection
@@ -64,6 +87,11 @@ service cloud.firestore {
         request.auth.token.provider == 'xloudid' ||
         resource.data.userId.matches('^xloudid_.*$')
       );
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 } 

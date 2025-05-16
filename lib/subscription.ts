@@ -142,7 +142,7 @@ export async function isFeatureAvailable(
   if (!hasPro) return false;
   
   const settings = await getUserSettings(userId);
-  return settings[feature] ?? false;
+  return settings[feature] === true;
 }
 
 // Constants for Pro plan limits

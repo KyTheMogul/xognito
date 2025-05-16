@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { auth } from '@/lib/firebase';
-import { canInviteUsers, addUserToSubscription } from '@/lib/subscription';
+import { canInviteUsers } from '@/lib/subscription';
 
 interface InviteUserModalProps {
   isOpen: boolean;
@@ -14,7 +14,6 @@ export default function InviteUserModal({ isOpen, onClose }: InviteUserModalProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,8 +37,8 @@ export default function InviteUserModal({ isOpen, onClose }: InviteUserModalProp
         return;
       }
 
-      // Generate a unique invitation token
-      const response = await fetch('/api/invitations/create', {
+      // Send invitation email
+      const response = await fetch('/api/invitations/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,15 +50,13 @@ export default function InviteUserModal({ isOpen, onClose }: InviteUserModalProp
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create invitation');
+        throw new Error('Failed to send invitation');
       }
 
-      const { inviteToken } = await response.json();
-      const inviteUrl = `${window.location.origin}/invite/${inviteToken}`;
-      setInviteLink(inviteUrl);
       setSuccess(true);
+      setEmail('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create invitation');
+      setError(err instanceof Error ? err.message : 'Failed to send invitation');
     } finally {
       setLoading(false);
     }
@@ -106,29 +103,15 @@ export default function InviteUserModal({ isOpen, onClose }: InviteUserModalProp
               className="w-full bg-white text-black hover:bg-zinc-100"
               disabled={loading}
             >
-              {loading ? 'Creating Invitation...' : 'Create Invitation'}
+              {loading ? 'Sending Invitation...' : 'Send Invitation'}
             </Button>
           </form>
         ) : (
           <div className="space-y-4">
             <div className="bg-zinc-800 rounded-lg p-4">
-              <p className="text-zinc-300 text-sm mb-2">Share this invitation link:</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={inviteLink!}
-                  readOnly
-                  className="flex-1 bg-zinc-700 text-white px-3 py-2 rounded text-sm"
-                />
-                <Button
-                  onClick={() => {
-                    navigator.clipboard.writeText(inviteLink!);
-                  }}
-                  className="bg-white text-black hover:bg-zinc-100"
-                >
-                  Copy
-                </Button>
-              </div>
+              <p className="text-zinc-300">
+                Invitation sent successfully! The user will receive an email with instructions to join.
+              </p>
             </div>
             <Button
               onClick={onClose}
