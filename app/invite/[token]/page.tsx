@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -8,7 +8,14 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-export default function InvitePage({ params }: { params: { token: string } }) {
+interface PageProps {
+  params: {
+    token: string;
+  };
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
+export default function InvitePage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inviteData, setInviteData] = useState<any>(null);
@@ -68,7 +75,7 @@ export default function InvitePage({ params }: { params: { token: string } }) {
       const inviteRef = doc(db, 'invitations', params.token);
       await updateDoc(inviteRef, {
         status: 'accepted',
-        acceptedAt: new Date(),
+        acceptedAt: new Date().toISOString(),
         acceptedBy: user.user.uid
       });
 
