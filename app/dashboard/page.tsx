@@ -59,26 +59,26 @@ async function fetchDeepSeekResponseStream(
 ): Promise<void> {
   try {
     console.log("[DeepSeek] Starting API call with messages:", messages);
-  const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
     if (!apiKey) {
       console.error("[DeepSeek] No API key found");
       throw new Error('DeepSeek API key not set');
     }
 
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages,
-      stream: true,
+    const res = await fetch('https://api.deepseek.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat-1.5',
+        messages,
+        stream: true,
         temperature: 0.7,
         max_tokens: 1000
-    }),
-  });
+      }),
+    });
 
     if (!res.ok) {
       const errorText = await res.text();
