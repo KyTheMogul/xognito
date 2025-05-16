@@ -7,7 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { 
   createConversation, 
   getConversations, 
@@ -29,6 +29,7 @@ import {
 } from '@/lib/memory';
 import MemoryNotification from '../../components/MemoryNotification';
 import { Timestamp } from 'firebase/firestore';
+import { loadStripe } from '@stripe/stripe-js';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -276,6 +277,19 @@ export default function Dashboard() {
   const recognitionRef = useRef<any>(null);
   const listenTimeoutRef = useRef<any>(null);
   const [activeMemories, setActiveMemories] = useState<NotificationMemory[]>([]);
+  const [userSubscription, setUserSubscription] = useState<{
+    plan: 'free' | 'pro' | 'pro_plus';
+    isActive: boolean;
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+    startDate?: Timestamp;
+    nextBillingDate?: Timestamp;
+    addedBy?: string;
+    sharedUsers?: string[];
+    seatsUsed?: number;
+    seatsAllowed?: number;
+    trialEndsAt?: Timestamp;
+  } | null>(null);
 
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
@@ -739,6 +753,64 @@ When responding:
     setActiveMemories(prev => prev.filter(m => m.id !== memoryId));
   };
 
+  // Fetch user subscription
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const unsubscribe = onSnapshot(doc(db, `users/${user.uid}/subscription`), (doc) => {
+      if (doc.exists()) {
+        setUserSubscription(doc.data() as any);
+      } else {
+        // Set default free plan if no subscription exists
+        setUserSubscription({
+          plan: 'free',
+          isActive: true
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth.currentUser]);
+
+  const handlePlanChange = async (newPlan: 'pro' | 'pro_plus') => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      // Create Stripe Checkout Session
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plan: newPlan,
+          userId: user.uid,
+          email: user.email,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const { sessionId } = await response.json();
+
+      // Redirect to Stripe Checkout
+      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+      if (!stripe) throw new Error('Stripe failed to load');
+
+      const { error } = await stripe.redirectToCheckout({ sessionId });
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error('[Dashboard] Error initiating plan change:', error);
+      // Show error notification to user
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       {/* Profile picture and add family button in top right */}
@@ -1144,7 +1216,7 @@ When responding:
             <h2 className="text-2xl font-bold mb-8 text-white text-center mt-12">Manage Subscription</h2>
             <div className="flex flex-row gap-8 justify-center items-stretch mb-6 mt-20">
               {/* Free Plan Card */}
-              <div className="rounded-2xl border border-white bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300">
+              <div className={`rounded-2xl border ${userSubscription?.plan === 'free' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
                 <div className="font-bold text-xl mb-1 tracking-wide">Free</div>
                 <div className="text-lg mb-1 font-semibold">$0/month</div>
                 <div className="text-xs text-zinc-300 mb-3 italic">Try it out with no pressure.</div>
@@ -1157,10 +1229,15 @@ When responding:
                   <li>Group chat not available</li>
                   <li>Xognito branding shown</li>
                 </ul>
-                <button className="bg-white text-black font-semibold px-4 py-2 rounded-lg transition-colors">Start Free</button>
+                <button 
+                  className={`${userSubscription?.plan === 'free' ? 'bg-green-500 cursor-not-allowed' : 'bg-white hover:bg-zinc-100'} text-black font-semibold px-4 py-2 rounded-lg transition-colors`}
+                  disabled={userSubscription?.plan === 'free'}
+                >
+                  {userSubscription?.plan === 'free' ? 'Current Plan' : 'Change Plan'}
+                </button>
               </div>
-              {/* Pro Plan Card (bigger, white, black text, badge, gradient, animated) */}
-              <div className="relative rounded-2xl border border-black bg-gradient-to-b from-white to-zinc-100 p-12 flex flex-col items-center shadow-2xl text-black font-semibold min-w-[320px] max-w-[400px] scale-110 z-10 flex-1 transition-transform duration-200 hover:scale-115 hover:shadow-[0_8px_40px_0_rgba(0,0,0,0.18)]">
+              {/* Pro Plan Card */}
+              <div className={`relative rounded-2xl border ${userSubscription?.plan === 'pro' ? 'border-green-500' : 'border-black'} bg-gradient-to-b from-white to-zinc-100 p-12 flex flex-col items-center shadow-2xl text-black font-semibold min-w-[320px] max-w-[400px] scale-110 z-10 flex-1 transition-transform duration-200 hover:scale-115 hover:shadow-[0_8px_40px_0_rgba(0,0,0,0.18)]`}>
                 {/* Most Popular Badge */}
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-black text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg tracking-wide border border-white">Most Popular</div>
                 <div className="font-bold text-2xl mb-1 tracking-wide">Pro</div>
@@ -1196,7 +1273,36 @@ When responding:
                     </>
                   );
                 })()}
-                <button className="bg-black hover:bg-zinc-900 text-white font-semibold px-7 py-3 rounded-lg transition-colors text-base shadow">Upgrade to Pro</button>
+                <button 
+                  className={`${userSubscription?.plan === 'pro' ? 'bg-green-500 cursor-not-allowed' : 'bg-black hover:bg-zinc-900'} text-white font-semibold px-7 py-3 rounded-lg transition-colors text-base shadow`}
+                  disabled={userSubscription?.plan === 'pro'}
+                  onClick={() => handlePlanChange('pro')}
+                >
+                  {userSubscription?.plan === 'pro' ? 'Current Plan' : 'Change Plan'}
+                </button>
+              </div>
+              {/* Pro Plus Plan Card */}
+              <div className={`rounded-2xl border ${userSubscription?.plan === 'pro_plus' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
+                <div className="font-bold text-xl mb-1 tracking-wide">Pro Plus</div>
+                <div className="text-lg mb-1 font-semibold">$25/month</div>
+                <div className="text-xs text-zinc-300 mb-3 italic">Everything you need and more.</div>
+                <ul className="text-sm text-zinc-300 mb-6 space-y-2 text-left w-full max-w-[210px]">
+                  <li>Everything in Pro, plus:</li>
+                  <li>Full offline access</li>
+                  <li>Higher file size limits</li>
+                  <li>Longer memory depth</li>
+                  <li>Early access to beta tools</li>
+                  <li>Priority group features</li>
+                  <li>Includes up to 2 users</li>
+                  <li>Additional users: +30%/user</li>
+                </ul>
+                <button 
+                  className={`${userSubscription?.plan === 'pro_plus' ? 'bg-green-500 cursor-not-allowed' : 'bg-white hover:bg-zinc-100'} text-black font-semibold px-4 py-2 rounded-lg transition-colors`}
+                  disabled={userSubscription?.plan === 'pro_plus'}
+                  onClick={() => handlePlanChange('pro_plus')}
+                >
+                  {userSubscription?.plan === 'pro_plus' ? 'Current Plan' : 'Change Plan'}
+                </button>
               </div>
             </div>
           </div>
