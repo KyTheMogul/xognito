@@ -1058,10 +1058,10 @@ When responding:
       {/* Settings Modal */}
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-zinc-900/80 rounded-2xl shadow-2xl p-8 w-full max-w-2xl relative min-h-[400px] border-2 border-white/80 backdrop-blur-lg" style={{ boxShadow: '0 8px 40px 0 rgba(0,0,0,0.7)' }}>
+          <div className="bg-zinc-900/80 rounded-2xl shadow-2xl p-8 w-full max-w-2xl relative border-2 border-white/80 backdrop-blur-lg" style={{ boxShadow: '0 8px 40px 0 rgba(0,0,0,0.7)', height: '80vh' }}>
             <button className="absolute top-3 right-3 text-zinc-400 hover:text-white text-2xl" onClick={() => setSettingsOpen(false)}>&times;</button>
             <h2 className="text-xl font-bold mb-6 text-white text-center">Settings</h2>
-            <div className="flex gap-8">
+            <div className="flex gap-8 h-[calc(100%-3rem)]">
               {/* Vertical Tab Headers */}
               <div className="flex flex-col gap-2 min-w-[160px] pr-4 border-r border-white/10">
                 <span onClick={() => setSettingsTab('account')} className={`cursor-pointer text-base font-semibold py-2 px-3 rounded-lg transition-colors text-left flex items-center gap-2 ${settingsTab === 'account' ? 'text-white bg-white/20' : 'text-zinc-300 hover:bg-white/10 hover:text-white/80'}`}>
@@ -1086,27 +1086,30 @@ When responding:
                 </span>
               </div>
               {/* Tab Content */}
-              <div className="flex-1 rounded-xl p-6 min-h-[200px] bg-transparent">
+              <div className="flex-1 rounded-xl p-6 bg-transparent overflow-y-auto custom-scrollbar">
                 {settingsTab === 'account' && (
-                  <div>
+                  <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Account Settings</h3>
                     <div className="text-zinc-300">Change your email, username, and other account details here.</div>
+                    {/* Add more account settings here */}
                   </div>
                 )}
                 {settingsTab === 'security' && (
-                  <div>
+                  <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Security Settings</h3>
                     <div className="text-zinc-300">Update your password and enable 2FA here.</div>
+                    {/* Add more security settings here */}
                   </div>
                 )}
                 {settingsTab === 'appearance' && (
-                  <div>
+                  <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Appearance Settings</h3>
                     <div className="text-zinc-300">Customize the look and feel of your dashboard.</div>
+                    {/* Add more appearance settings here */}
                   </div>
                 )}
                 {settingsTab === 'ai' && (
-                  <div>
+                  <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">AI Customization</h3>
                     <div className="text-zinc-300 mb-4">Customize how Xognito interacts with you.</div>
                     <div className="space-y-4">
@@ -1124,6 +1127,7 @@ When responding:
                           <li>• Adapt naturally to your needs</li>
                         </ul>
                       </div>
+                      {/* Add more AI settings here */}
                     </div>
                   </div>
                 )}
@@ -1248,6 +1252,23 @@ When responding:
         @keyframes blink-smooth {
           0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
           40% { opacity: 1; transform: translateY(-2px); }
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: rgba(255, 255, 255, 0.2);
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(255, 255, 255, 0.3);
         }
       `}</style>
     </div>
