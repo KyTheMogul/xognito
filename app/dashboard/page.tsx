@@ -1,13 +1,43 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { auth, db } from '@/lib/firebase';
-import { signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { signOut, signInWithCustomToken } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  addDoc, 
+  serverTimestamp, 
+  orderBy, 
+  limit, 
+  getDoc, 
+  doc, 
+  updateDoc, 
+  arrayUnion,
+  Timestamp,
+  onSnapshot,
+  setDoc
+} from 'firebase/firestore';
+import { loadStripe } from '@stripe/stripe-js';
+import { canSendMessage, incrementMessageCount, canUploadFile, incrementFileUpload, getUsageStats } from '@/lib/usage';
+import { 
+  hasProPlan, 
+  canInviteUsers, 
+  addUserToSubscription,
+  getUserSettings,
+  updateUserSettings,
+  isFeatureAvailable,
+  PRO_PLAN_LIMITS,
+  type UserSettings
+} from '@/lib/subscription';
+import ProFeatures from '@/components/ProFeatures';
 import { 
   createConversation, 
   getConversations, 
@@ -27,10 +57,8 @@ import {
   generateMemoryContext,
   type Memory 
 } from '@/lib/memory';
-import MemoryNotification from '../../components/MemoryNotification';
-import { Timestamp } from 'firebase/firestore';
-import { loadStripe } from '@stripe/stripe-js';
-import { canSendMessage, incrementMessageCount, canUploadFile, incrementFileUpload, getUsageStats } from '@/lib/usage';
+import MemoryNotification from '@/components/MemoryNotification';
+import InviteUserModal from '@/components/InviteUserModal';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -254,6 +282,14 @@ function isFeelingInquiry(text: string): boolean {
 // Check for browser support
 const SpeechRecognition = typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
+// Add this type definition near the top with other types
+type LinkedUser = {
+  uid: string;
+  email: string;
+  photoURL: string;
+  displayName: string;
+};
+
 // Force new deployment - May 15, 2024
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -290,6 +326,10 @@ export default function Dashboard() {
     seatsUsed?: number;
     seatsAllowed?: number;
     trialEndsAt?: Timestamp;
+    isInvitedUser?: boolean;
+    inviterEmail?: string;
+    billingGroup?: string;
+    xloudId?: string;
   } | null>(null);
   const [showDailyLimitError, setShowDailyLimitError] = useState(false);
   const [usageStats, setUsageStats] = useState<{
@@ -297,6 +337,8 @@ export default function Dashboard() {
     filesUploaded: number;
     remaining: number;
   }>({ messagesToday: 0, filesUploaded: 0, remaining: 25 });
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
 
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
@@ -384,7 +426,8 @@ export default function Dashboard() {
     }
 
     // Check message limit for free plan
-    if (userSubscription?.plan === 'free') {
+    const hasPro = await hasProPlan(user.uid);
+    if (!hasPro) {
       const messageCheck = await canSendMessage(user.uid);
       if (!messageCheck.allowed) {
         setShowDailyLimitError(true);
@@ -584,7 +627,7 @@ When responding:
   }, [messages]);
 
   // Handle file upload
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
 
@@ -592,7 +635,8 @@ When responding:
     if (!user) return;
 
     // Check file upload limit for free plan
-    if (userSubscription?.plan === 'free') {
+    const hasPro = await hasProPlan(user.uid);
+    if (!hasPro) {
       if (usageStats.filesUploaded >= 3) {
         setShowDailyLimitError(true);
         setTimeout(() => setShowDailyLimitError(false), 5000);
@@ -604,6 +648,13 @@ When responding:
     for (let i = 0; i < files.length && uploads.length + newFiles.length < 3; i++) {
       const file = files[i];
       const id = Math.random().toString(36).slice(2);
+      
+      // Check file size for Pro plan
+      if (hasPro && file.size > PRO_PLAN_LIMITS.maxFileSize) {
+        alert(`File size exceeds the 5MB limit. Please upgrade to Pro Plus for larger files.`);
+        continue;
+      }
+      
       if (file.type.startsWith('image/')) {
         newFiles.push({ id, file, url: URL.createObjectURL(file), type: 'image', name: file.name });
       } else if (file.type === 'application/pdf') {
@@ -612,7 +663,7 @@ When responding:
     }
 
     // Increment file upload counter for free plan
-    if (userSubscription?.plan === 'free' && newFiles.length > 0) {
+    if (!hasPro && newFiles.length > 0) {
       incrementFileUpload(user.uid);
       setUsageStats(prev => ({
         ...prev,
@@ -898,6 +949,86 @@ When responding:
     fetchUsageStats();
   }, [auth.currentUser]);
 
+  // Add function to handle adding a user
+  const handleAddUser = async (email: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const canInvite = await canInviteUsers(user.uid);
+    if (!canInvite) {
+      alert('You cannot invite more users at this time.');
+      return;
+    }
+
+    // TODO: Implement user invitation logic
+    // This would typically involve:
+    // 1. Creating a new user account
+    // 2. Adding them to the subscription
+    // 3. Sending an invitation email
+  };
+
+  // Add function to handle settings updates
+  const handleSettingsUpdate = async (settings: Partial<UserSettings>) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const hasPro = await hasProPlan(user.uid);
+    if (!hasPro) {
+      alert('This feature is only available with a Pro subscription.');
+      return;
+    }
+
+    const success = await updateUserSettings(user.uid, settings);
+    if (success) {
+      // Refresh settings
+      const newSettings = await getUserSettings(user.uid);
+      // Update UI accordingly
+    }
+  };
+
+  // Add this effect to fetch linked users
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const fetchLinkedUsers = async () => {
+      try {
+        // Get the subscription document
+        const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
+        const subscriptionDoc = await getDoc(subscriptionRef);
+        
+        if (subscriptionDoc.exists()) {
+          const subscriptionData = subscriptionDoc.data();
+          const invitedUsers = subscriptionData.invitedUsers || [];
+          
+          // Fetch details for each invited user
+          const userDetails = await Promise.all(
+            invitedUsers.map(async (uid: string) => {
+              const userRef = doc(db, 'users', uid);
+              const userDoc = await getDoc(userRef);
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                return {
+                  uid,
+                  email: userData.email,
+                  photoURL: userData.photoURL || USER_PROFILE,
+                  displayName: userData.displayName || userData.email
+                };
+              }
+              return null;
+            })
+          );
+
+          setLinkedUsers(userDetails.filter((user): user is LinkedUser => user !== null));
+        }
+      } catch (error) {
+        console.error('Error fetching linked users:', error);
+      }
+    };
+
+    fetchLinkedUsers();
+  }, [auth.currentUser]);
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       {/* Daily limit error message */}
@@ -927,58 +1058,89 @@ When responding:
 
       {/* Profile picture and add family button in top right */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
-        {/* Add family member button */}
-        <div className="relative">
+        {userSubscription?.plan === 'free' ? (
           <Button
-            variant="ghost"
-            size="icon"
-            className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
-            aria-label="Add family member"
+            onClick={() => setSubscriptionOpen(true)}
+            className="bg-white text-black hover:bg-zinc-100 font-semibold rounded-full px-4 py-2 text-sm"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Upgrade Plan
           </Button>
-          {showTooltip && (
-            <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
-              Add family member
+        ) : (
+          <>
+            {/* Linked users avatars */}
+            {linkedUsers.length > 0 && (
+              <div className="flex -space-x-2">
+                {linkedUsers.map((user) => (
+                  <div key={user.uid} className="relative group">
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName}
+                      className="w-10 h-10 rounded-full border-2 border-white object-cover"
+                    />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      {user.displayName}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add family member button */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+                onClick={() => setShowInviteModal(true)}
+                aria-label="Add family member"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </Button>
+              {showTooltip && (
+                <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
+                  Add family member
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <button
-          onClick={() => setProfileMenuOpen((v) => !v)}
-          className="focus:outline-none"
-        >
-          <img
-            src={USER_PROFILE}
-            alt="Profile"
-            className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer"
-          />
-        </button>
-        {profileMenuOpen && (
-          <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
-            <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
-            <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
-              {/* Free plan icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
-              Free Plan
-            </div>
-            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
-              {/* Manage subscription icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
-              Manage Subscription
-            </Button>
-            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
-              {/* Settings icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-              Settings
-            </Button>
-            <Button className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost">
-              {/* Logout icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-              Logout
-            </Button>
-          </div>
+
+            <button
+              onClick={() => setProfileMenuOpen((v) => !v)}
+              className="focus:outline-none"
+            >
+              <img
+                src={USER_PROFILE}
+                alt="Profile"
+                className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer"
+              />
+            </button>
+            {profileMenuOpen && (
+              <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
+                <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
+                <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
+                  {/* Free plan icon */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
+                  Free Plan
+                </div>
+                <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
+                  {/* Manage subscription icon */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
+                  Manage Subscription
+                </Button>
+                <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
+                  {/* Settings icon */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                  Settings
+                </Button>
+                <Button className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost">
+                  {/* Logout icon */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                  Logout
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
       {/* Sidebar */}
@@ -1298,25 +1460,44 @@ When responding:
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
+                            {userSubscription?.isInvitedUser && (
+                              <div className="mt-2 space-y-1">
+                                <p className="text-zinc-400 text-xs">
+                                  Invited by: {userSubscription.inviterEmail}
+                                </p>
+                                <p className="text-zinc-400 text-xs">
+                                  Billing Group: {userSubscription.billingGroup}
+                                </p>
+                                <p className="text-zinc-400 text-xs">
+                                  XloudID: {userSubscription.xloudId}
+                                </p>
+                              </div>
+                            )}
                             {userSubscription?.nextBillingDate && (
                               <p className="text-zinc-400 text-xs mt-1">
                                 Next billing date: {userSubscription.nextBillingDate.toDate().toLocaleDateString()}
                               </p>
                             )}
                           </div>
-                          <Button 
-                            className="bg-white text-black hover:bg-zinc-100"
-                            onClick={() => setSubscriptionOpen(true)}
-                          >
-                            Change Plan
-                          </Button>
+                          {!userSubscription?.isInvitedUser && (
+                            <Button 
+                              className="bg-white text-black hover:bg-zinc-100"
+                              onClick={() => setSubscriptionOpen(true)}
+                            >
+                              Change Plan
+                            </Button>
+                          )}
                         </div>
                       </div>
 
                       {/* Payment Method */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Payment Method</h4>
-                        {userSubscription?.stripeCustomerId ? (
+                        {userSubscription?.isInvitedUser ? (
+                          <p className="text-zinc-400 text-sm">
+                            Billing is managed by your inviter ({userSubscription.inviterEmail})
+                          </p>
+                        ) : userSubscription?.stripeCustomerId ? (
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1342,7 +1523,11 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Billing History</h4>
                         <div className="space-y-2">
-                          {userSubscription?.plan !== 'free' ? (
+                          {userSubscription?.isInvitedUser ? (
+                            <p className="text-zinc-400 text-sm">
+                              Billing history is managed by your inviter
+                            </p>
+                          ) : userSubscription?.plan !== 'free' ? (
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-zinc-300">Last payment</span>
                               <span className="text-zinc-400">$12.00</span>
@@ -1572,6 +1757,12 @@ When responding:
           background-color: rgba(255, 255, 255, 0.3);
         }
       `}</style>
+
+      {/* Add the invite modal */}
+      <InviteUserModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+      />
     </div>
   );
 } 
