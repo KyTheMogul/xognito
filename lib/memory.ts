@@ -183,10 +183,14 @@ export async function getRelevantMemories(
   userId: string,
   message: string
 ): Promise<Memory[]> {
+  console.log("[Memory] Getting relevant memories for message:", message);
   const words = message.toLowerCase().split(/\s+/);
+  console.log("[Memory] Extracted words:", words);
   
   const memoriesRef = collection(db, `users/${userId}/memory`);
-  const q = query(
+  
+  // First try exact matches
+  const exactQuery = query(
     memoriesRef,
     where('deleted', '==', false),
     where('triggerWords', 'array-contains-any', words),
@@ -194,11 +198,43 @@ export async function getRelevantMemories(
     limit(3)
   );
 
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
+  const exactSnapshot = await getDocs(exactQuery);
+  const exactMemories = exactSnapshot.docs.map(doc => ({
     id: doc.id,
     ...doc.data()
   } as Memory));
+
+  console.log("[Memory] Found exact matches:", exactMemories);
+
+  // If no exact matches, try partial matches
+  if (exactMemories.length === 0) {
+    console.log("[Memory] No exact matches, trying partial matches");
+    const allMemoriesQuery = query(
+      memoriesRef,
+      where('deleted', '==', false),
+      orderBy('lastTriggered', 'desc'),
+      limit(10)
+    );
+
+    const allSnapshot = await getDocs(allMemoriesQuery);
+    const allMemories = allSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Memory));
+
+    // Filter for partial matches in memory summaries
+    const partialMatches = allMemories.filter(memory => 
+      words.some(word => 
+        memory.summary.toLowerCase().includes(word) ||
+        memory.topics.some(topic => topic.toLowerCase().includes(word))
+      )
+    );
+
+    console.log("[Memory] Found partial matches:", partialMatches);
+    return partialMatches.slice(0, 3);
+  }
+
+  return exactMemories;
 }
 
 // Update memory last triggered timestamp
@@ -216,9 +252,13 @@ export async function updateMemoryLastTriggered(
 export function generateMemoryContext(memories: Memory[]): string {
   if (memories.length === 0) return '';
 
-  const context = memories.map(memory => 
-    `Memory: ${memory.summary}\nTopics: ${memory.topics.join(', ')}\n`
+  const context = memories.map((memory, index) => 
+    `Memory ${index + 1}:\n` +
+    `- Summary: ${memory.summary}\n` +
+    `- Topics: ${memory.topics.join(', ')}\n` +
+    `- Type: ${memory.type}\n` +
+    `- Importance: ${memory.importanceScore}\n`
   ).join('\n');
 
-  return `\nRelevant memories:\n${context}\n`;
+  return `\nHere are your relevant memories that you should consider when responding:\n${context}\n\nUse these memories to provide more personalized and contextual responses. If a memory is relevant to the user's question, incorporate that information naturally into your response.`;
 } 

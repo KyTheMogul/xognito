@@ -368,7 +368,9 @@ export default function Dashboard() {
 
       // Get relevant memories for context
       const relevantMemories = await getRelevantMemories(user.uid, input);
+      console.log("[Dashboard] Retrieved relevant memories:", relevantMemories);
       const memoryContext = generateMemoryContext(relevantMemories);
+      console.log("[Dashboard] Generated memory context:", memoryContext);
 
       // If this is the first message, generate a title
       if (messages.length === 0) {
@@ -392,7 +394,7 @@ export default function Dashboard() {
       const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
         { 
           role: 'system', 
-          content: `You are a helpful assistant.${memoryContext}`
+          content: `You are a helpful assistant with memory capabilities. You can remember important information shared by the user.${memoryContext}`
         },
         { role: 'user', content: input }
       ];
