@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+import { stripe } from '@/lib/stripe';
 
 const PLANS = {
   pro: {

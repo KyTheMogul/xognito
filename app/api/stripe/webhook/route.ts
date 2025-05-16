@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+import { stripe } from '@/lib/stripe';
+import type Stripe from 'stripe';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
