@@ -108,6 +108,15 @@ export async function evaluateMemoryOpportunity(
     'never forget',
     'keep in mind',
     'note to self',
+    'created',
+    'founded',
+    'started',
+    'built',
+    'developed',
+    'launched',
+    'company',
+    'business',
+    'project'
   ];
 
   const hasMemoryTrigger = memoryTriggers.some(trigger => 

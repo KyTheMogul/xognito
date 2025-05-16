@@ -25,6 +25,11 @@ service cloud.firestore {
           allow read, write: if isOwner(userId);
         }
       }
+
+      // Nested memory collection
+      match /memory/{memoryId} {
+        allow read, write: if isOwner(userId);
+      }
     }
   }
 } 
