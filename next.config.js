@@ -3,7 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
     // Exclude Firebase Functions from the build
-    config.externals = [...(config.externals || []), 'firebase-functions', 'firebase-admin'];
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'firebase-functions', 'firebase-admin'];
+    }
     return config;
   },
   // Exclude Firebase Functions directory from the build
