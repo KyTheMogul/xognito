@@ -55,44 +55,81 @@ async function fetchDeepSeekResponseStream(
   messages: { role: 'user' | 'system' | 'assistant'; content: string }[],
   onChunk: (chunk: string) => void
 ): Promise<void> {
-  const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
-  if (!apiKey) throw new Error('DeepSeek API key not set');
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages,
-      stream: true,
-    }),
-  });
-  if (!res.ok || !res.body) throw new Error('Failed to fetch from DeepSeek API');
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-  let done = false;
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      let lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-        const data = trimmed.replace(/^data:/, '');
-        if (data === '[DONE]') return;
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-          if (delta) onChunk(delta);
-        } catch {}
+  try {
+    console.log("[DeepSeek] Starting API call with messages:", messages);
+    const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      console.error("[DeepSeek] No API key found");
+      throw new Error('DeepSeek API key not set');
+    }
+
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages,
+        stream: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("[DeepSeek] API error:", {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorText
+      });
+      throw new Error(`DeepSeek API error: ${res.status} ${res.statusText}`);
+    }
+
+    if (!res.body) {
+      console.error("[DeepSeek] No response body");
+      throw new Error('No response body from DeepSeek API');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let done = false;
+
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+        let lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          
+          const data = trimmed.replace(/^data:/, '');
+          if (data === '[DONE]') return;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              console.log("[DeepSeek] Received chunk:", delta);
+              onChunk(delta);
+            }
+          } catch (e) {
+            console.error("[DeepSeek] Error parsing chunk:", e);
+          }
+        }
       }
     }
+  } catch (error) {
+    console.error("[DeepSeek] Error in API call:", error);
+    // Send a fallback response
+    onChunk("I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.");
+    throw error;
   }
 }
 
@@ -400,16 +437,27 @@ export default function Dashboard() {
       ];
 
       let aiResponse = '';
-      await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-        aiResponse += chunk;
-        // Update the AI message in Firestore with the current response
-        const updatedAiMessage: Omit<Message, 'timestamp'> = {
+      try {
+        await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+          aiResponse += chunk;
+          // Update the AI message in Firestore with the current response
+          const updatedAiMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: aiResponse,
+            thinking: false
+          };
+          updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
+        });
+      } catch (error) {
+        console.error("[Dashboard] Error in DeepSeek API call:", error);
+        // Update with error message
+        const errorMessage: Omit<Message, 'timestamp'> = {
           sender: 'ai',
-          text: aiResponse,
+          text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
           thinking: false
         };
-        updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
-      });
+        await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage);
+      }
 
       // Update lastTriggered for any memories that were referenced
       for (const memory of relevantMemories) {
