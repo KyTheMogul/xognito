@@ -783,8 +783,7 @@ When responding:
     try {
       console.log('[Dashboard] Initiating plan change:', {
         plan: newPlan,
-        userId: user.uid,
-        email: user.email
+        userId: user.uid
       });
 
       // Create Stripe Checkout Session
@@ -795,8 +794,7 @@ When responding:
         },
         body: JSON.stringify({
           plan: newPlan,
-          userId: user.uid,
-          email: user.email,
+          userId: user.uid
         }),
       });
 

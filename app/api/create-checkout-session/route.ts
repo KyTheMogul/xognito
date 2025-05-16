@@ -51,14 +51,13 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log('[Checkout] Request body:', {
       plan: body.plan,
-      userId: body.userId,
-      email: body.email ? `${body.email.substring(0, 3)}...` : 'missing'
+      userId: body.userId
     });
 
-    const { plan, userId, email } = body;
+    const { plan, userId } = body;
 
-    if (!plan || !userId || !email) {
-      console.error('[Checkout] Missing required fields:', { plan, userId, email });
+    if (!plan || !userId) {
+      console.error('[Checkout] Missing required fields:', { plan, userId });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -106,19 +105,20 @@ export async function POST(req: Request) {
     // Create or get Stripe customer
     let customerId: string;
     try {
-      console.log('[Checkout] Looking up customer:', { email: `${email.substring(0, 3)}...` });
-      const customerSnapshot = await stripe.customers.list({
-        email,
-        limit: 1,
+      console.log('[Checkout] Looking up customer:', { userId });
+      // First try to find customer by metadata
+      const customers = await stripe.customers.list({
+        limit: 100, // Get more customers to search through
       });
-
-      if (customerSnapshot.data.length > 0) {
-        customerId = customerSnapshot.data[0].id;
+      
+      const existingCustomer = customers.data.find(c => c.metadata?.userId === userId);
+      
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
         console.log('[Checkout] Found existing customer:', { customerId });
       } else {
-        console.log('[Checkout] Creating new customer:', { email: `${email.substring(0, 3)}...`, userId });
+        console.log('[Checkout] Creating new customer:', { userId });
         const customer = await stripe.customers.create({
-          email,
           metadata: {
             userId,
           },
