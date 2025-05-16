@@ -436,7 +436,7 @@ export default function Dashboard() {
       const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
         { 
           role: 'system', 
-          content: `You are a helpful AI assistant with memory capabilities. You MUST use the memories provided to give accurate, personalized responses.${memoryContext}\n\nGuidelines:\n1. Keep responses concise and focused\n2. Use memories when relevant\n3. Don't make assumptions\n4. Ask for clarification if needed`
+          content: `You are a helpful companion with memory capabilities. You should speak naturally and conversationally, as if you're a real person. Never mention that you're an AI or assistant.${memoryContext}\n\nGuidelines:\n1. Keep responses concise and focused\n2. Use memories when relevant\n3. Don't make assumptions\n4. Ask for clarification if needed\n5. When someone shares something with you, acknowledge it naturally\n6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note`
         },
         { role: 'user', content: input }
       ];
@@ -459,6 +459,17 @@ export default function Dashboard() {
             });
         });
         console.log("[Dashboard] Stream complete, final response:", aiResponse);
+
+        // If a memory was created, add a confirmation message
+        if (memoryId) {
+          const confirmationMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: "I'll make sure to remember that for our future conversations.",
+            thinking: false
+          };
+          await addMessage(user.uid, activeConversationId!, confirmationMessage);
+        }
+
       } catch (error) {
         console.error("[Dashboard] Error in DeepSeek API call:", error);
         // Update with error message
