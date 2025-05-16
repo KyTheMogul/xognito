@@ -22,5 +22,13 @@
       "memory": 1024,
       "maxDuration": 10
     }
-  }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "ignore": [
+    "firebase/functions/**"
+  ]
 } 
