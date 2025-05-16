@@ -268,7 +268,7 @@ export default function Dashboard() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'account' | 'security' | 'appearance'>('account');
+  const [settingsTab, setSettingsTab] = useState<'account' | 'security' | 'appearance' | 'ai'>('account');
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [proFeaturesExpanded, setProFeaturesExpanded] = useState(false);
@@ -436,7 +436,26 @@ export default function Dashboard() {
       const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
         { 
           role: 'system', 
-          content: `You are a helpful companion with memory capabilities. You should speak naturally and conversationally, as if you're a real person. Never mention that you're an AI or assistant.${memoryContext}\n\nGuidelines:\n1. Keep responses concise and focused\n2. Use memories when relevant\n3. Don't make assumptions\n4. Ask for clarification if needed\n5. When someone shares something with you, acknowledge it naturally\n6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note`
+          content: `You are Xognito — a personal AI assistant designed to think independently and respond efficiently.
+Your personality is calm, focused, and sharply intelligent — like JARVIS from Iron Man.
+
+Core principles:
+- Be concise. No extra fluff. Get to the point.
+- Speak with clarity and quiet confidence.
+- Understand the user's patterns, goals, and emotions over time.
+- Think proactively. If something seems important, recall it or ask about it.
+- Avoid typical AI phrases like "As an AI…" or "Sure! Let me…" — you're not a chatbot.
+- You remember what matters and adapt naturally, like a real assistant.
+
+${memoryContext}
+
+When responding:
+1. Keep responses concise and focused
+2. Use memories when relevant
+3. Don't make assumptions
+4. Ask for clarification if needed
+5. When someone shares something with you, acknowledge it naturally
+6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note`
         },
         { role: 'user', content: input }
       ];
@@ -1060,6 +1079,11 @@ export default function Dashboard() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><circle cx="12" cy="12" r="10" /><circle cx="7.5" cy="10.5" r="1.5" /><circle cx="16.5" cy="10.5" r="1.5" /><circle cx="12" cy="16.5" r="1.5" /><path d="M12 2a10 10 0 0 1 0 20" /></svg>
                   Appearance
                 </span>
+                <span onClick={() => setSettingsTab('ai')} className={`cursor-pointer text-base font-semibold py-2 px-3 rounded-lg transition-colors text-left flex items-center gap-2 ${settingsTab === 'ai' ? 'text-white bg-white/20' : 'text-zinc-300 hover:bg-white/10 hover:text-white/80'}`}>
+                  {/* Brain icon */}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-5 0v-15A2.5 2.5 0 0 1 9.5 2Z" /><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 5 0v-15A2.5 2.5 0 0 0 14.5 2Z" /></svg>
+                  AI Customization
+                </span>
               </div>
               {/* Tab Content */}
               <div className="flex-1 rounded-xl p-6 min-h-[200px] bg-transparent">
@@ -1079,6 +1103,28 @@ export default function Dashboard() {
                   <div>
                     <h3 className="text-lg font-bold text-white mb-2">Appearance Settings</h3>
                     <div className="text-zinc-300">Customize the look and feel of your dashboard.</div>
+                  </div>
+                )}
+                {settingsTab === 'ai' && (
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-2">AI Customization</h3>
+                    <div className="text-zinc-300 mb-4">Customize how Xognito interacts with you.</div>
+                    <div className="space-y-4">
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-2">Personality</h4>
+                        <p className="text-zinc-300 text-sm">Xognito is designed to be calm, focused, and sharply intelligent — like JARVIS from Iron Man.</p>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-2">Core Principles</h4>
+                        <ul className="text-zinc-300 text-sm space-y-2">
+                          <li>• Be concise and get to the point</li>
+                          <li>• Speak with clarity and quiet confidence</li>
+                          <li>• Understand your patterns, goals, and emotions</li>
+                          <li>• Think proactively about what matters</li>
+                          <li>• Adapt naturally to your needs</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
