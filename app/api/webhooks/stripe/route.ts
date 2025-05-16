@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         const subscription = await stripe.subscriptions.retrieve(session.subscription as string) as unknown as Stripe.Subscription;
 
         // Update user's subscription in Firestore
-        await setDoc(doc(db, `users/${userId}/subscription`), {
+        await setDoc(doc(db, 'users', userId, 'subscription', 'current'), {
           plan,
           isActive: true,
           stripeCustomerId: session.customer,
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         const userId = customer.metadata.userId;
 
         // Update subscription status in Firestore
-        await setDoc(doc(db, `users/${userId}/subscription`), {
+        await setDoc(doc(db, 'users', userId, 'subscription', 'current'), {
           isActive: subscription.status === 'active',
           nextBillingDate: new Date(subscription.current_period_end * 1000),
         }, { merge: true });
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         const userId = customer.metadata.userId;
 
         // Downgrade to free plan
-        await setDoc(doc(db, `users/${userId}/subscription`), {
+        await setDoc(doc(db, 'users', userId, 'subscription', 'current'), {
           plan: 'free',
           isActive: true,
           stripeCustomerId: null,

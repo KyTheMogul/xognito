@@ -758,7 +758,7 @@ When responding:
     const user = auth.currentUser;
     if (!user) return;
 
-    const unsubscribe = onSnapshot(doc(db, `users/${user.uid}/subscription`), (doc) => {
+    const unsubscribe = onSnapshot(doc(db, 'users', user.uid, 'subscription', 'current'), (doc) => {
       if (doc.exists()) {
         setUserSubscription(doc.data() as any);
       } else {
