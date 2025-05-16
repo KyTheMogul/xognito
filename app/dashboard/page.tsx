@@ -20,6 +20,14 @@ import {
   listenToMessages,
   deleteConversation
 } from '@/lib/firestore';
+import { 
+  evaluateMemoryOpportunity, 
+  getRelevantMemories, 
+  updateMemoryLastTriggered,
+  generateMemoryContext,
+  type Memory 
+} from '@/lib/memory';
+import MemoryNotification from '../../components/MemoryNotification';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -34,6 +42,12 @@ type UploadedFile = {
   type: 'image' | 'pdf';
   name: string;
 };
+
+interface NotificationMemory {
+  id: string;
+  summary: string;
+  type: 'short' | 'relationship' | 'deep';
+}
 
 // Add DeepSeek API integration with streaming support
 async function fetchDeepSeekResponseStream(
@@ -217,6 +231,7 @@ export default function Dashboard() {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const listenTimeoutRef = useRef<any>(null);
+  const [activeMemories, setActiveMemories] = useState<NotificationMemory[]>([]);
 
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
@@ -308,16 +323,36 @@ export default function Dashboard() {
     try {
       console.log("[Dashboard] Adding user message to Firestore");
       // Add user message
-      await addMessage(user.uid, activeConversationId!, userMessage);
+      const userMessageId = await addMessage(user.uid, activeConversationId!, userMessage);
       console.log("[Dashboard] User message added successfully");
       
       setInput('');
       setUploads([]);
 
+      // Evaluate if message should be stored as memory
+      const memoryId = await evaluateMemoryOpportunity(user.uid, input, activeConversationId!, userMessageId);
+      if (memoryId) {
+        console.log("[Dashboard] Created new memory:", memoryId);
+        // Get the memory details from Firestore
+        const memoryRef = doc(db, 'memory', memoryId);
+        const memoryDoc = await getDoc(memoryRef);
+        if (memoryDoc.exists()) {
+          const memoryData = memoryDoc.data();
+          handleNewMemory({
+            id: memoryId,
+            summary: memoryData.summary,
+            type: memoryData.type || 'short'
+          });
+        }
+      }
+
+      // Get relevant memories for context
+      const relevantMemories = await getRelevantMemories(user.uid, input);
+      const memoryContext = generateMemoryContext(relevantMemories);
+
       // If this is the first message, generate a title
       if (messages.length === 0) {
         console.log("[Dashboard] First message, updating conversation title");
-        // TODO: Implement AI title generation
         const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
         await updateConversationTitle(user.uid, activeConversationId!, title);
         console.log("[Dashboard] Conversation title updated");
@@ -335,7 +370,10 @@ export default function Dashboard() {
 
       // Call DeepSeek API and stream the response
       const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-        { role: 'system', content: 'You are a helpful assistant.' },
+        { 
+          role: 'system', 
+          content: `You are a helpful assistant.${memoryContext}`
+        },
         { role: 'user', content: input }
       ];
 
@@ -350,6 +388,19 @@ export default function Dashboard() {
         };
         updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
       });
+
+      // Update lastTriggered for any memories that were referenced
+      for (const memory of relevantMemories) {
+        if (aiResponse.toLowerCase().includes(memory.summary.toLowerCase())) {
+          await updateMemoryLastTriggered(user.uid, memory.id);
+          // Show notification for triggered memory
+          handleNewMemory({
+            id: memory.id,
+            summary: memory.summary,
+            type: memory.type || 'short'
+          });
+        }
+      }
 
     } catch (error) {
       console.error("[Dashboard] Error sending message:", error);
@@ -565,6 +616,14 @@ export default function Dashboard() {
 
     handleAuth();
   }, []);
+
+  const handleNewMemory = (memory: NotificationMemory) => {
+    setActiveMemories(prev => [...prev, memory]);
+  };
+
+  const handleMemoryDelete = (memoryId: string) => {
+    setActiveMemories(prev => prev.filter(m => m.id !== memoryId));
+  };
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -978,6 +1037,16 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Memory notifications */}
+      {activeMemories.map((memory, index) => (
+        <MemoryNotification
+          key={memory.id}
+          memory={memory}
+          onDelete={() => handleMemoryDelete(memory.id)}
+          index={index}
+        />
+      ))}
 
       <style jsx global>{`
         .dot-anim {
