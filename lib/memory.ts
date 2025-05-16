@@ -39,10 +39,14 @@ interface MemorySummary {
 
 // Generate AI summary for memory
 async function generateMemorySummary(message: string): Promise<MemorySummary> {
-  const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
-  if (!apiKey) throw new Error('DeepSeek API key not set');
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      console.log("[Memory] No DeepSeek API key, using fallback summary");
+      return generateFallbackSummary(message);
+    }
 
-  const prompt = `Analyze this message and create a concise memory summary:
+    const prompt = `Analyze this message and create a concise memory summary:
 Message: "${message}"
 
 Provide a JSON response with:
@@ -57,35 +61,59 @@ Example response:
   "importanceScore": 0.8
 }`;
 
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-    }),
-  });
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+      }),
+    });
 
-  if (!res.ok) throw new Error('Failed to generate memory summary');
-  
-  const data = await res.json();
-  const content = data.choices[0].message.content;
-  
-  try {
-    return JSON.parse(content) as MemorySummary;
-  } catch (e) {
-    console.error('Failed to parse memory summary:', e);
-    // Fallback to basic summary
-    return {
-      summary: message.substring(0, 100),
-      topics: extractTriggerWords(message),
-      importanceScore: 0.5,
-    };
+    if (!res.ok) {
+      console.error("[Memory] DeepSeek API error:", await res.text());
+      return generateFallbackSummary(message);
+    }
+    
+    const data = await res.json();
+    const content = data.choices[0].message.content;
+    
+    try {
+      return JSON.parse(content) as MemorySummary;
+    } catch (e) {
+      console.error("[Memory] Failed to parse memory summary:", e);
+      return generateFallbackSummary(message);
+    }
+  } catch (error) {
+    console.error("[Memory] Error generating memory summary:", error);
+    return generateFallbackSummary(message);
   }
+}
+
+// Generate a fallback summary when AI summarization fails
+function generateFallbackSummary(message: string): MemorySummary {
+  console.log("[Memory] Generating fallback summary");
+  
+  // Extract key topics from the message
+  const topics = extractTriggerWords(message);
+  
+  // Create a simple summary
+  const summary = message.length > 100 
+    ? message.substring(0, 97) + '...'
+    : message;
+  
+  // Calculate importance based on message length and trigger words
+  const importanceScore = Math.min(0.5 + (topics.length * 0.1), 0.9);
+  
+  return {
+    summary,
+    topics,
+    importanceScore
+  };
 }
 
 // Update evaluateMemoryOpportunity to use AI summarization
