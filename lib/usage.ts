@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { doc, getDoc, updateDoc, Timestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, Timestamp, increment } from 'firebase/firestore';
 
 export interface UsageStats {
   messagesToday: number;
@@ -20,8 +20,8 @@ export async function canSendMessage(uid: string): Promise<MessageCheck> {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   
   if (!usageDoc.exists()) {
-    // Initialize usage stats
-    await updateDoc(usageRef, {
+    // Initialize usage stats with setDoc
+    await setDoc(usageRef, {
       messagesToday: 0,
       filesUploaded: 0,
       lastReset: Timestamp.fromDate(today)
@@ -35,8 +35,9 @@ export async function canSendMessage(uid: string): Promise<MessageCheck> {
 
   // Reset if it's a new day
   if (lastResetDay < today) {
-    await updateDoc(usageRef, {
+    await setDoc(usageRef, {
       messagesToday: 0,
+      filesUploaded: usageData.filesUploaded,
       lastReset: Timestamp.fromDate(today)
     });
     return { allowed: true, remaining: 25 };
@@ -51,6 +52,17 @@ export async function canSendMessage(uid: string): Promise<MessageCheck> {
 
 export async function incrementMessageCount(uid: string): Promise<void> {
   const usageRef = doc(db, 'users', uid, 'usageStats', 'current');
+  const usageDoc = await getDoc(usageRef);
+  
+  if (!usageDoc.exists()) {
+    await setDoc(usageRef, {
+      messagesToday: 1,
+      filesUploaded: 0,
+      lastReset: Timestamp.fromDate(new Date())
+    });
+    return;
+  }
+
   await updateDoc(usageRef, {
     messagesToday: increment(1)
   });
@@ -61,7 +73,7 @@ export async function canUploadFile(uid: string): Promise<boolean> {
   const usageDoc = await getDoc(usageRef);
   
   if (!usageDoc.exists()) {
-    await updateDoc(usageRef, {
+    await setDoc(usageRef, {
       messagesToday: 0,
       filesUploaded: 0,
       lastReset: Timestamp.fromDate(new Date())
@@ -75,6 +87,17 @@ export async function canUploadFile(uid: string): Promise<boolean> {
 
 export async function incrementFileUpload(uid: string): Promise<void> {
   const usageRef = doc(db, 'users', uid, 'usageStats', 'current');
+  const usageDoc = await getDoc(usageRef);
+  
+  if (!usageDoc.exists()) {
+    await setDoc(usageRef, {
+      messagesToday: 0,
+      filesUploaded: 1,
+      lastReset: Timestamp.fromDate(new Date())
+    });
+    return;
+  }
+
   await updateDoc(usageRef, {
     filesUploaded: increment(1)
   });
@@ -90,7 +113,7 @@ export async function getUsageStats(uid: string): Promise<UsageStats> {
       filesUploaded: 0,
       lastReset: Timestamp.fromDate(new Date())
     };
-    await updateDoc(usageRef, stats);
+    await setDoc(usageRef, stats);
     return stats as UsageStats;
   }
 

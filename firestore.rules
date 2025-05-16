@@ -41,6 +41,11 @@ service cloud.firestore {
       match /subscription/{subscriptionId} {
         allow read, write: if isOwner(userId);
       }
+
+      // Nested usageStats collection
+      match /usageStats/{statsId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // Checkout sessions collection
