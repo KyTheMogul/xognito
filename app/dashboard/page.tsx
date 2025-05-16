@@ -210,6 +210,7 @@ function isFeelingInquiry(text: string): boolean {
 // Check for browser support
 const SpeechRecognition = typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
+// Force new deployment - May 15, 2024
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
