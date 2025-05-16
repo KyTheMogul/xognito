@@ -1063,7 +1063,7 @@ When responding:
         {userSubscription?.plan === 'free' ? (
           <Button
             onClick={() => setSubscriptionOpen(true)}
-            className="bg-white text-black hover:bg-zinc-100 font-semibold rounded-full px-4 py-2 text-sm"
+            className="bg-transparent text-white hover:bg-white/10 font-semibold rounded-full px-4 py-2 text-sm border border-zinc-400/50"
           >
             Upgrade Plan
           </Button>
