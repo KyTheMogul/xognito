@@ -95,8 +95,13 @@ export async function evaluateMemoryOpportunity(
   chatId: string,
   messageId: string
 ): Promise<string | null> {
+  console.log("[Memory] Evaluating message for memory:", { message });
+  
   // Skip if message is too short or likely not meaningful
-  if (message.length < 10) return null;
+  if (message.length < 10) {
+    console.log("[Memory] Message too short, skipping");
+    return null;
+  }
 
   // Check for memory triggers
   const memoryTriggers = [
@@ -123,11 +128,18 @@ export async function evaluateMemoryOpportunity(
     message.toLowerCase().includes(trigger)
   );
 
-  if (!hasMemoryTrigger) return null;
+  console.log("[Memory] Memory trigger check:", { hasMemoryTrigger, triggers: memoryTriggers.filter(t => message.toLowerCase().includes(t)) });
+
+  if (!hasMemoryTrigger) {
+    console.log("[Memory] No memory triggers found");
+    return null;
+  }
 
   try {
     // Generate AI summary
+    console.log("[Memory] Generating AI summary");
     const { summary, topics, importanceScore } = await generateMemorySummary(message);
+    console.log("[Memory] Generated summary:", { summary, topics, importanceScore });
 
     // Create memory document
     const memoryData = {
@@ -142,15 +154,17 @@ export async function evaluateMemoryOpportunity(
     };
 
     // Save to Firestore
+    console.log("[Memory] Saving to Firestore:", { path: `users/${userId}/memory`, data: memoryData });
     const memoryRef = await addDoc(collection(db, `users/${userId}/memory`), {
       ...memoryData,
       createdAt: serverTimestamp(),
       lastTriggered: serverTimestamp(),
     });
+    console.log("[Memory] Memory saved successfully:", memoryRef.id);
 
     return memoryRef.id;
   } catch (error) {
-    console.error('Failed to create memory:', error);
+    console.error("[Memory] Failed to create memory:", error);
     return null;
   }
 }

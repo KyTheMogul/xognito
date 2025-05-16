@@ -354,7 +354,7 @@ export default function Dashboard() {
       if (memoryId) {
         console.log("[Dashboard] Created new memory:", memoryId);
         // Get the memory details from Firestore
-        const memoryRef = doc(db, 'memory', memoryId);
+        const memoryRef = doc(db, `users/${user.uid}/memory`, memoryId);
         const memoryDoc = await getDoc(memoryRef);
         if (memoryDoc.exists()) {
           const memoryData = memoryDoc.data();
