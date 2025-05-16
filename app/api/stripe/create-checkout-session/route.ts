@@ -40,6 +40,7 @@ export async function POST(req: Request) {
     const { plan, userId } = body;
 
     if (!plan || !userId) {
+      console.error('Missing required fields:', { plan, userId });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -48,89 +49,111 @@ export async function POST(req: Request) {
 
     const planDetails = PLANS[plan as keyof typeof PLANS];
     if (!planDetails) {
+      console.error('Invalid plan selected:', plan);
       return NextResponse.json(
         { error: 'Invalid plan selected' },
         { status: 400 }
       );
     }
 
+    console.log('Creating Stripe customer for user:', userId);
     // Get or create Stripe customer
     let customerId: string;
-    const customers = await stripe.customers.list({
-      limit: 100,
-    });
-    
-    const existingCustomer = customers.data.find(c => c.metadata?.userId === userId);
-    
-    if (existingCustomer) {
-      customerId = existingCustomer.id;
-    } else {
-      const customer = await stripe.customers.create({
-        metadata: { userId },
+    try {
+      const customers = await stripe.customers.list({
+        limit: 100,
       });
-      customerId = customer.id;
+      
+      const existingCustomer = customers.data.find(c => c.metadata?.userId === userId);
+      
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+        console.log('Found existing customer:', customerId);
+      } else {
+        const customer = await stripe.customers.create({
+          metadata: { userId },
+        });
+        customerId = customer.id;
+        console.log('Created new customer:', customerId);
+      }
+    } catch (error) {
+      console.error('Error with Stripe customer:', error);
+      throw error;
     }
 
+    console.log('Creating checkout session for customer:', customerId);
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: planDetails.name,
-              description: planDetails.features.join('\n'),
-              metadata: {
-                plan,
-                userId
-              }
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: planDetails.name,
+                description: planDetails.features.join('\n'),
+                metadata: {
+                  plan,
+                  userId
+                }
+              },
+              unit_amount: planDetails.price,
+              recurring: {
+                interval: 'month',
+              },
             },
-            unit_amount: planDetails.price,
-            recurring: {
-              interval: 'month',
-            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        mode: 'subscription',
+        success_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+        metadata: {
+          userId,
+          plan,
         },
-      ],
-      mode: 'subscription',
-      success_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-      metadata: {
-        userId,
-        plan,
-      },
-      allow_promotion_codes: true,
-      billing_address_collection: 'auto',
-      customer_update: {
-        address: 'auto',
-        name: 'auto'
+        allow_promotion_codes: true,
+        billing_address_collection: 'auto',
+        customer_update: {
+          address: 'auto',
+          name: 'auto'
+        }
+      });
+
+      console.log('Storing checkout session in Firestore:', session.id);
+      // Store checkout session in Firestore
+      try {
+        await setDoc(doc(db, 'checkout_sessions', session.id), {
+          userId,
+          customerId,
+          plan,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          sessionId: session.id,
+          metadata: session.metadata
+        });
+        console.log('Successfully stored checkout session');
+      } catch (error) {
+        console.error('Error storing checkout session in Firestore:', error);
+        throw error;
       }
-    });
 
-    // Store checkout session in Firestore
-    await setDoc(doc(db, 'checkout_sessions', session.id), {
-      userId,
-      customerId,
-      plan,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      sessionId: session.id,
-      metadata: session.metadata
-    });
-
-    return NextResponse.json({ 
-      sessionId: session.id,
-      url: session.url
-    });
+      return NextResponse.json({ 
+        sessionId: session.id,
+        url: session.url
+      });
+    } catch (error) {
+      console.error('Error creating Stripe checkout session:', error);
+      throw error;
+    }
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    console.error('Error in create-checkout-session:', error);
     return NextResponse.json(
       { 
         error: 'Error creating checkout session',
-        details: (error as any).message
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );

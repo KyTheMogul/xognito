@@ -36,5 +36,11 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
     }
+
+    // Checkout sessions collection
+    match /checkout_sessions/{sessionId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
   }
 } 
