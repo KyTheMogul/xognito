@@ -9,7 +9,11 @@ service cloud.firestore {
     
     // Helper function to check if user owns the document
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isAuthenticated() && (
+        request.auth.uid == userId || 
+        request.auth.token.user_id == userId ||
+        request.auth.token.sub == userId
+      );
     }
 
     // Users collection
@@ -39,8 +43,16 @@ service cloud.firestore {
 
     // Checkout sessions collection
     match /checkout_sessions/{sessionId} {
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.userId == request.auth.token.user_id ||
+        request.resource.data.userId == request.auth.token.sub
+      );
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.userId == request.auth.token.user_id ||
+        resource.data.userId == request.auth.token.sub
+      );
     }
   }
 } 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { stripe } from '@/lib/stripe';
+import { auth } from '@/lib/firebase';
 
 const PLANS = {
   pro: {
@@ -44,6 +45,24 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      );
+    }
+
+    // Verify the user exists in Firestore
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (!userDoc.exists()) {
+        console.error('User not found in Firestore:', userId);
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+    } catch (error) {
+      console.error('Error checking user in Firestore:', error);
+      return NextResponse.json(
+        { error: 'Error verifying user' },
+        { status: 500 }
       );
     }
 
