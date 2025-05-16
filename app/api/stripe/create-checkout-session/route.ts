@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { stripe } from '@/lib/stripe';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // Validate required environment variables
 const requiredEnvVars = {
@@ -23,6 +24,7 @@ console.log('[Checkout] Checking environment variables:', {
 });
 
 // Initialize Firebase Admin if not already initialized
+let adminDb: FirebaseFirestore.Firestore;
 if (!getApps().length) {
   console.log('[Checkout] Initializing Firebase Admin');
   try {
@@ -32,13 +34,14 @@ if (!getApps().length) {
       throw new Error('Missing required Firebase Admin environment variables');
     }
 
-    initializeApp({
+    const app = initializeApp({
       credential: cert({
         projectId: requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID,
         clientEmail: requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL,
         privateKey: requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n'),
       }),
     });
+    adminDb = getFirestore(app);
     console.log('[Checkout] Firebase Admin initialized successfully');
   } catch (error) {
     console.error('[Checkout] Firebase Admin initialization error:', {
@@ -54,6 +57,8 @@ if (!getApps().length) {
     });
     throw error;
   }
+} else {
+  adminDb = getFirestore();
 }
 
 const PLANS = {
@@ -106,10 +111,10 @@ export async function POST(req: Request) {
     try {
       console.log('[Checkout] Checking user in Firestore:', { userId: userId.substring(0, 10) + '...' });
       // For XloudID users, we need to check both the custom ID and the Firebase UID
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      console.log('[Checkout] User document exists:', userDoc.exists());
+      const userDoc = await adminDb.collection('users').doc(userId).get();
+      console.log('[Checkout] User document exists:', userDoc.exists);
       
-      if (!userDoc.exists()) {
+      if (!userDoc.exists) {
         console.log('[Checkout] User not found with custom ID, trying Firebase UID');
         // If not found with custom ID, try to find by Firebase UID
         try {
@@ -123,10 +128,10 @@ export async function POST(req: Request) {
           
           const firebaseUid = decodedToken.uid;
           console.log('[Checkout] Looking up user by Firebase UID:', firebaseUid);
-          const userDocByUid = await getDoc(doc(db, 'users', firebaseUid));
-          console.log('[Checkout] User document exists by Firebase UID:', userDocByUid.exists());
+          const userDocByUid = await adminDb.collection('users').doc(firebaseUid).get();
+          console.log('[Checkout] User document exists by Firebase UID:', userDocByUid.exists);
           
-          if (!userDocByUid.exists()) {
+          if (!userDocByUid.exists) {
             console.error('[Checkout] User not found in Firestore:', { 
               customId: userId.substring(0, 10) + '...',
               firebaseUid 
@@ -145,7 +150,7 @@ export async function POST(req: Request) {
           // If token verification fails, try to create the user document
           console.log('[Checkout] Creating new user document:', userId.substring(0, 10) + '...');
           try {
-            await setDoc(doc(db, 'users', userId), {
+            await adminDb.collection('users').doc(userId).set({
               createdAt: new Date().toISOString(),
               lastLogin: new Date().toISOString(),
               provider: 'xloudid'
@@ -261,26 +266,16 @@ export async function POST(req: Request) {
 
       console.log('[Checkout] Storing checkout session in Firestore:', session.id);
       // Store checkout session in Firestore
-      try {
-        await setDoc(doc(db, 'checkout_sessions', session.id), {
-          userId,
-          customerId,
-          plan,
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          sessionId: session.id,
-          metadata: session.metadata
-        });
-        console.log('[Checkout] Successfully stored checkout session');
-      } catch (error) {
-        console.error('[Checkout] Error storing checkout session in Firestore:', {
-          error,
-          message: (error as Error).message,
-          code: (error as any).code,
-          stack: (error as Error).stack
-        });
-        throw error;
-      }
+      await adminDb.collection('checkout_sessions').doc(session.id).set({
+        userId,
+        customerId,
+        plan,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        sessionId: session.id,
+        metadata: session.metadata
+      });
+      console.log('[Checkout] Successfully stored checkout session');
 
       return NextResponse.json({ 
         sessionId: session.id,
