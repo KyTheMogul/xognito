@@ -5,15 +5,38 @@ import { stripe } from '@/lib/stripe';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
+// Validate required environment variables
+const requiredEnvVars = {
+  FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
+  FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+  FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+};
+
+console.log('[Checkout] Checking environment variables:', {
+  hasProjectId: !!requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID,
+  hasClientEmail: !!requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL,
+  hasPrivateKey: !!requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY,
+  hasAppUrl: !!requiredEnvVars.NEXT_PUBLIC_APP_URL,
+  hasStripeKey: !!requiredEnvVars.STRIPE_SECRET_KEY,
+});
+
 // Initialize Firebase Admin if not already initialized
 if (!getApps().length) {
   console.log('[Checkout] Initializing Firebase Admin');
   try {
+    if (!requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID || 
+        !requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL || 
+        !requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY) {
+      throw new Error('Missing required Firebase Admin environment variables');
+    }
+
     initializeApp({
       credential: cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        projectId: requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID,
+        clientEmail: requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL,
+        privateKey: requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n'),
       }),
     });
     console.log('[Checkout] Firebase Admin initialized successfully');
@@ -22,7 +45,12 @@ if (!getApps().length) {
       error,
       message: (error as Error).message,
       code: (error as any).code,
-      stack: (error as Error).stack
+      stack: (error as Error).stack,
+      envVars: {
+        hasProjectId: !!requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID,
+        hasClientEmail: !!requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL,
+        hasPrivateKey: !!requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY,
+      }
     });
     throw error;
   }
