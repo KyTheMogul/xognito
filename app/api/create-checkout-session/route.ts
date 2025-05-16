@@ -7,6 +7,9 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore';
 let adminDb: Firestore;
 try {
   if (!getApps().length) {
+    if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !process.env.FIREBASE_ADMIN_PRIVATE_KEY) {
+      throw new Error('Missing Firebase Admin credentials');
+    }
     const app = initializeApp({
       credential: cert({
         projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
@@ -21,20 +24,26 @@ try {
   console.error('[Checkout] Firebase Admin initialization failed:', {
     error,
     message: (error as any).message,
-    code: (error as any).code
+    code: (error as any).code,
+    stack: (error as any).stack
   });
   throw new Error('Firebase Admin initialization failed');
 }
 
+// Initialize Stripe
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('Missing Stripe secret key');
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2025-04-30.basil',
+});
+
 // Log Stripe configuration (without exposing the full key)
-const stripeKeyPrefix = process.env.STRIPE_SECRET_KEY?.substring(0, 7) || 'missing';
+const stripeKeyPrefix = process.env.STRIPE_SECRET_KEY.substring(0, 7);
 console.log('[Checkout] Stripe configuration:', {
   keyPrefix: stripeKeyPrefix,
   apiVersion: '2025-04-30.basil'
-});
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-04-30.basil',
 });
 
 const PLANS = {
@@ -79,6 +88,7 @@ export async function POST(req: Request) {
 
     const { plan, userId } = body;
 
+    // Validate request data
     if (!plan || !userId) {
       console.error('[Checkout] Missing required fields:', { plan, userId });
       return NextResponse.json(
@@ -135,10 +145,11 @@ export async function POST(req: Request) {
       } catch (updateError) {
         console.error('[Checkout] Error updating user subscription:', {
           error: updateError,
-          userId,
-          plan,
           message: (updateError as any).message,
-          code: (updateError as any).code
+          code: (updateError as any).code,
+          stack: (updateError as any).stack,
+          userId,
+          plan
         });
         return NextResponse.json(
           { 
@@ -152,9 +163,10 @@ export async function POST(req: Request) {
     } catch (error) {
       console.error('[Checkout] Error accessing Firestore:', {
         error,
-        userId,
         message: (error as any).message,
-        code: (error as any).code
+        code: (error as any).code,
+        stack: (error as any).stack,
+        userId
       });
       return NextResponse.json(
         { 
@@ -207,6 +219,7 @@ export async function POST(req: Request) {
         message: (error as any).message,
         type: (error as any).type,
         code: (error as any).code,
+        stack: (error as any).stack,
         userId
       });
       return NextResponse.json(
@@ -233,7 +246,7 @@ export async function POST(req: Request) {
         plan,
         baseUrl,
         planDetails,
-        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7),
+        stripeKeyPrefix,
         hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
         hasFirebaseConfig: !!process.env.FIREBASE_ADMIN_PROJECT_ID
       });
@@ -335,6 +348,7 @@ export async function POST(req: Request) {
           error,
           message: (error as any).message,
           code: (error as any).code,
+          stack: (error as any).stack,
           sessionId: session.id
         });
         // Continue even if Firestore update fails - we can handle this in the webhook
@@ -351,9 +365,10 @@ export async function POST(req: Request) {
         message: (error as any).message,
         type: (error as any).type,
         code: (error as any).code,
+        stack: (error as any).stack,
         customerId,
         plan,
-        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7),
+        stripeKeyPrefix,
         hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
         hasFirebaseConfig: !!process.env.FIREBASE_ADMIN_PROJECT_ID
       });
@@ -369,18 +384,24 @@ export async function POST(req: Request) {
             hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
             hasFirebaseConfig: !!process.env.FIREBASE_ADMIN_PROJECT_ID,
             customerId: !!customerId,
-            plan: !!plan
+            plan: !!plan,
+            stack: (error as any).stack
           }
         },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error('[Checkout] Error in checkout session creation:', error);
+    console.error('[Checkout] Error in checkout session creation:', {
+      error,
+      message: (error as any).message,
+      stack: (error as any).stack
+    });
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        details: (error as any).message
+        details: (error as any).message,
+        stack: (error as any).stack
       },
       { status: 500 }
     );
