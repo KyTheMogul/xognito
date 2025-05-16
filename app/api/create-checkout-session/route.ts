@@ -231,9 +231,22 @@ export async function POST(req: Request) {
         customerId,
         plan,
         baseUrl,
-        planDetails
+        planDetails,
+        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7)
       });
 
+      // Validate required data
+      if (!customerId) {
+        throw new Error('Missing customerId');
+      }
+      if (!planDetails) {
+        throw new Error('Missing planDetails');
+      }
+      if (!baseUrl) {
+        throw new Error('Missing baseUrl');
+      }
+
+      // Create the session with more detailed configuration
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ['card'],
@@ -244,6 +257,10 @@ export async function POST(req: Request) {
               product_data: {
                 name: planDetails.name,
                 description: planDetails.features.join('\n'),
+                metadata: {
+                  plan,
+                  userId
+                }
               },
               unit_amount: planDetails.price,
               recurring: {
@@ -259,14 +276,22 @@ export async function POST(req: Request) {
         metadata: {
           userId,
           plan,
+          customerId
         },
+        allow_promotion_codes: true,
+        billing_address_collection: 'auto',
+        customer_update: {
+          address: 'auto',
+          name: 'auto'
+        }
       });
 
       console.log('[Checkout] Session created successfully:', { 
         sessionId: session.id,
         customerId: session.customer,
         status: session.status,
-        url: session.url
+        url: session.url,
+        metadata: session.metadata
       });
 
       // Store checkout session in Firestore
@@ -278,9 +303,13 @@ export async function POST(req: Request) {
           plan,
           status: 'pending',
           createdAt: new Date().toISOString(),
-          sessionId: session.id
+          sessionId: session.id,
+          metadata: session.metadata
         });
-        console.log('[Checkout] Stored checkout session in Firestore:', { sessionId: session.id });
+        console.log('[Checkout] Stored checkout session in Firestore:', { 
+          sessionId: session.id,
+          metadata: session.metadata
+        });
       } catch (error) {
         console.error('[Checkout] Error storing checkout session in Firestore:', {
           error,
@@ -291,7 +320,10 @@ export async function POST(req: Request) {
         // Continue even if Firestore update fails - we can handle this in the webhook
       }
 
-      return NextResponse.json({ sessionId: session.id });
+      return NextResponse.json({ 
+        sessionId: session.id,
+        url: session.url
+      });
     } catch (error) {
       console.error('[Checkout] Error creating checkout session:', {
         error,
@@ -299,7 +331,8 @@ export async function POST(req: Request) {
         type: (error as any).type,
         code: (error as any).code,
         customerId,
-        plan
+        plan,
+        stripeKeyPrefix: process.env.STRIPE_SECRET_KEY?.substring(0, 7)
       });
       return NextResponse.json(
         { 
