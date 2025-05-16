@@ -270,7 +270,7 @@ export default function Dashboard() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'account' | 'security' | 'appearance' | 'ai'>('account');
+  const [settingsTab, setSettingsTab] = useState<'account' | 'security' | 'appearance' | 'ai' | 'billing'>('account');
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [proFeaturesExpanded, setProFeaturesExpanded] = useState(false);
@@ -1258,6 +1258,11 @@ When responding:
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                   Security
                 </span>
+                <span onClick={() => setSettingsTab('billing')} className={`cursor-pointer text-base font-semibold py-2 px-3 rounded-lg transition-colors text-left flex items-center gap-2 ${settingsTab === 'billing' ? 'text-white bg-white/20' : 'text-zinc-300 hover:bg-white/10 hover:text-white/80'}`}>
+                  {/* Credit card icon */}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
+                  Billing
+                </span>
                 <span onClick={() => setSettingsTab('appearance')} className={`cursor-pointer text-base font-semibold py-2 px-3 rounded-lg transition-colors text-left flex items-center gap-2 ${settingsTab === 'appearance' ? 'text-white bg-white/20' : 'text-zinc-300 hover:bg-white/10 hover:text-white/80'}`}>
                   {/* Palette icon */}
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><circle cx="12" cy="12" r="10" /><circle cx="7.5" cy="10.5" r="1.5" /><circle cx="16.5" cy="10.5" r="1.5" /><circle cx="12" cy="16.5" r="1.5" /><path d="M12 2a10 10 0 0 1 0 20" /></svg>
@@ -1275,21 +1280,100 @@ When responding:
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Account Settings</h3>
                     <div className="text-zinc-300">Change your email, username, and other account details here.</div>
-                    {/* Add more account settings here */}
                   </div>
                 )}
                 {settingsTab === 'security' && (
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Security Settings</h3>
                     <div className="text-zinc-300">Update your password and enable 2FA here.</div>
-                    {/* Add more security settings here */}
+                  </div>
+                )}
+                {settingsTab === 'billing' && (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-white mb-2">Billing & Subscription</h3>
+                    <div className="space-y-4">
+                      {/* Current Plan */}
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-2">Current Plan</h4>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
+                            {userSubscription?.nextBillingDate && (
+                              <p className="text-zinc-400 text-xs mt-1">
+                                Next billing date: {userSubscription.nextBillingDate.toDate().toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                          <Button 
+                            className="bg-white text-black hover:bg-zinc-100"
+                            onClick={() => setSubscriptionOpen(true)}
+                          >
+                            Change Plan
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Payment Method */}
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-2">Payment Method</h4>
+                        {userSubscription?.stripeCustomerId ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="1" y="4" width="22" height="16" rx="2" />
+                                <line x1="1" y1="10" x2="23" y2="10" />
+                              </svg>
+                              <span className="text-zinc-300 text-sm">•••• 4242</span>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              className="text-zinc-400 hover:text-white"
+                              onClick={() => {/* TODO: Implement update payment method */}}
+                            >
+                              Update
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-zinc-400 text-sm">No payment method on file</p>
+                        )}
+                      </div>
+
+                      {/* Billing History */}
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-2">Billing History</h4>
+                        <div className="space-y-2">
+                          {userSubscription?.plan !== 'free' ? (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-zinc-300">Last payment</span>
+                              <span className="text-zinc-400">$12.00</span>
+                            </div>
+                          ) : (
+                            <p className="text-zinc-400 text-sm">No billing history available</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Usage Stats */}
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-2">Usage This Month</h4>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-zinc-300">Messages</span>
+                            <span className="text-zinc-400">{usageStats.messagesToday}/25</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-zinc-300">File Uploads</span>
+                            <span className="text-zinc-400">{usageStats.filesUploaded}/3</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {settingsTab === 'appearance' && (
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Appearance Settings</h3>
                     <div className="text-zinc-300">Customize the look and feel of your dashboard.</div>
-                    {/* Add more appearance settings here */}
                   </div>
                 )}
                 {settingsTab === 'ai' && (
@@ -1300,7 +1384,7 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Personality</h4>
                         <p className="text-zinc-300 text-sm">Xognito is designed to be calm, focused, and sharply intelligent — like JARVIS from Iron Man.</p>
-              </div>
+                      </div>
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Core Principles</h4>
                         <ul className="text-zinc-300 text-sm space-y-2">
@@ -1311,7 +1395,6 @@ When responding:
                           <li>• Adapt naturally to your needs</li>
                         </ul>
                       </div>
-                      {/* Add more AI settings here */}
                     </div>
                   </div>
                 )}
