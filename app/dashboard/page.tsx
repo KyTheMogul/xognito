@@ -918,13 +918,6 @@ When responding:
         </div>
       )}
 
-      {/* Show usage stats for free plan */}
-      {userSubscription?.plan === 'free' && (
-        <div className="fixed top-4 left-4 z-50 bg-zinc-800/80 text-white px-4 py-2 rounded-lg text-sm">
-          Messages: {usageStats.messagesToday}/25 today
-        </div>
-      )}
-
       {/* Show Xognito branding for free plan */}
       {userSubscription?.plan === 'free' && (
         <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-zinc-400 text-xs">
