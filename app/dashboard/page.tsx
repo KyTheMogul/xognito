@@ -394,7 +394,7 @@ export default function Dashboard() {
       const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
         { 
           role: 'system', 
-          content: `You are a helpful assistant with memory capabilities. You can remember important information shared by the user.${memoryContext}`
+          content: `You are a helpful AI assistant with memory capabilities. You MUST use the memories provided to give accurate, personalized responses.${memoryContext}\n\nGuidelines:\n1. Keep responses concise and focused\n2. Use memories when relevant\n3. Don't make assumptions\n4. Ask for clarification if needed`
         },
         { role: 'user', content: input }
       ];

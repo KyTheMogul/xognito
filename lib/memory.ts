@@ -288,5 +288,5 @@ export function generateMemoryContext(memories: Memory[]): string {
     `- Importance: ${memory.importanceScore}\n`
   ).join('\n');
 
-  return `\nHere are your relevant memories that you should consider when responding:\n${context}\n\nUse these memories to provide more personalized and contextual responses. If a memory is relevant to the user's question, incorporate that information naturally into your response.`;
+  return `\nIMPORTANT: You have access to the following memories about the user. You MUST use these memories to provide accurate, personalized responses:\n\n${context}\n\nWhen responding:\n1. If the user asks about something in these memories, use that information\n2. Keep responses concise and focused\n3. Don't make assumptions about information not in the memories\n4. If you're not sure about something, ask the user for clarification\n`;
 } 
