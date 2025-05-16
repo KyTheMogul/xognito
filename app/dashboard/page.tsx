@@ -775,9 +775,18 @@ When responding:
 
   const handlePlanChange = async (newPlan: 'pro' | 'pro_plus') => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      console.error('[Dashboard] No user found');
+      return;
+    }
 
     try {
+      console.log('[Dashboard] Initiating plan change:', {
+        plan: newPlan,
+        userId: user.uid,
+        email: user.email
+      });
+
       // Create Stripe Checkout Session
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
@@ -792,17 +801,28 @@ When responding:
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+        const errorData = await response.json();
+        console.error('[Dashboard] Checkout session creation failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        throw new Error(`Failed to create checkout session: ${errorData.error || response.statusText}`);
       }
 
       const { sessionId } = await response.json();
+      console.log('[Dashboard] Checkout session created:', { sessionId });
 
       // Redirect to Stripe Checkout
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-      if (!stripe) throw new Error('Stripe failed to load');
+      if (!stripe) {
+        console.error('[Dashboard] Stripe failed to load');
+        throw new Error('Stripe failed to load');
+      }
 
       const { error } = await stripe.redirectToCheckout({ sessionId });
       if (error) {
+        console.error('[Dashboard] Stripe redirect error:', error);
         throw error;
       }
     } catch (error) {
