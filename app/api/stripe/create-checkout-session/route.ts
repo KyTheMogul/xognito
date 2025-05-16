@@ -2,7 +2,31 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { stripe } from '@/lib/stripe';
-import { auth } from 'firebase-admin';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+
+// Initialize Firebase Admin if not already initialized
+if (!getApps().length) {
+  console.log('[Checkout] Initializing Firebase Admin');
+  try {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+    console.log('[Checkout] Firebase Admin initialized successfully');
+  } catch (error) {
+    console.error('[Checkout] Firebase Admin initialization error:', {
+      error,
+      message: (error as Error).message,
+      code: (error as any).code,
+      stack: (error as Error).stack
+    });
+    throw error;
+  }
+}
 
 const PLANS = {
   pro: {
@@ -36,12 +60,14 @@ const PLANS = {
 };
 
 export async function POST(req: Request) {
+  console.log('[Checkout] Starting checkout session creation');
   try {
     const body = await req.json();
     const { plan, userId } = body;
+    console.log('[Checkout] Received request:', { plan, userId: userId?.substring(0, 10) + '...' });
 
     if (!plan || !userId) {
-      console.error('Missing required fields:', { plan, userId });
+      console.error('[Checkout] Missing required fields:', { plan, userId });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -50,34 +76,70 @@ export async function POST(req: Request) {
 
     // Verify the user exists in Firestore
     try {
+      console.log('[Checkout] Checking user in Firestore:', { userId: userId.substring(0, 10) + '...' });
       // For XloudID users, we need to check both the custom ID and the Firebase UID
       const userDoc = await getDoc(doc(db, 'users', userId));
+      console.log('[Checkout] User document exists:', userDoc.exists());
+      
       if (!userDoc.exists()) {
+        console.log('[Checkout] User not found with custom ID, trying Firebase UID');
         // If not found with custom ID, try to find by Firebase UID
         try {
-          const decodedToken = await auth().verifyIdToken(userId);
+          console.log('[Checkout] Attempting to verify token');
+          const decodedToken = await getAuth().verifyIdToken(userId);
+          console.log('[Checkout] Token verified successfully:', {
+            uid: decodedToken.uid,
+            provider: decodedToken.provider_id,
+            email: decodedToken.email
+          });
+          
           const firebaseUid = decodedToken.uid;
+          console.log('[Checkout] Looking up user by Firebase UID:', firebaseUid);
           const userDocByUid = await getDoc(doc(db, 'users', firebaseUid));
+          console.log('[Checkout] User document exists by Firebase UID:', userDocByUid.exists());
           
           if (!userDocByUid.exists()) {
-            console.error('User not found in Firestore:', { userId, firebaseUid });
+            console.error('[Checkout] User not found in Firestore:', { 
+              customId: userId.substring(0, 10) + '...',
+              firebaseUid 
+            });
             return NextResponse.json(
               { error: 'User not found' },
               { status: 404 }
             );
           }
         } catch (tokenError) {
-          // If token verification fails, try to create the user document
-          console.log('Token verification failed, creating user document:', userId);
-          await setDoc(doc(db, 'users', userId), {
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString(),
-            provider: 'xloudid'
+          console.log('[Checkout] Token verification failed:', {
+            error: tokenError,
+            message: (tokenError as Error).message,
+            code: (tokenError as any).code
           });
+          // If token verification fails, try to create the user document
+          console.log('[Checkout] Creating new user document:', userId.substring(0, 10) + '...');
+          try {
+            await setDoc(doc(db, 'users', userId), {
+              createdAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+              provider: 'xloudid'
+            });
+            console.log('[Checkout] Successfully created user document');
+          } catch (createError) {
+            console.error('[Checkout] Error creating user document:', {
+              error: createError,
+              message: (createError as Error).message,
+              code: (createError as any).code
+            });
+            throw createError;
+          }
         }
       }
     } catch (error) {
-      console.error('Error checking user in Firestore:', error);
+      console.error('[Checkout] Error checking user in Firestore:', {
+        error,
+        message: (error as Error).message,
+        code: (error as any).code,
+        stack: (error as Error).stack
+      });
       return NextResponse.json(
         { error: 'Error verifying user' },
         { status: 500 }
@@ -86,41 +148,50 @@ export async function POST(req: Request) {
 
     const planDetails = PLANS[plan as keyof typeof PLANS];
     if (!planDetails) {
-      console.error('Invalid plan selected:', plan);
+      console.error('[Checkout] Invalid plan selected:', plan);
       return NextResponse.json(
         { error: 'Invalid plan selected' },
         { status: 400 }
       );
     }
 
-    console.log('Creating Stripe customer for user:', userId);
+    console.log('[Checkout] Creating Stripe customer for user:', userId.substring(0, 10) + '...');
     // Get or create Stripe customer
     let customerId: string;
     try {
+      console.log('[Checkout] Listing Stripe customers');
       const customers = await stripe.customers.list({
         limit: 100,
       });
+      console.log('[Checkout] Found customers:', customers.data.length);
       
       const existingCustomer = customers.data.find(c => c.metadata?.userId === userId);
       
       if (existingCustomer) {
         customerId = existingCustomer.id;
-        console.log('Found existing customer:', customerId);
+        console.log('[Checkout] Found existing customer:', customerId);
       } else {
+        console.log('[Checkout] Creating new Stripe customer');
         const customer = await stripe.customers.create({
           metadata: { userId },
         });
         customerId = customer.id;
-        console.log('Created new customer:', customerId);
+        console.log('[Checkout] Created new customer:', customerId);
       }
     } catch (error) {
-      console.error('Error with Stripe customer:', error);
+      console.error('[Checkout] Error with Stripe customer:', {
+        error,
+        message: (error as Error).message,
+        code: (error as any).code,
+        type: (error as any).type
+      });
       throw error;
     }
 
-    console.log('Creating checkout session for customer:', customerId);
+    console.log('[Checkout] Creating checkout session for customer:', customerId);
     // Create checkout session
     try {
+      console.log('[Checkout] Creating Stripe checkout session');
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ['card'],
@@ -158,8 +229,9 @@ export async function POST(req: Request) {
           name: 'auto'
         }
       });
+      console.log('[Checkout] Successfully created checkout session:', session.id);
 
-      console.log('Storing checkout session in Firestore:', session.id);
+      console.log('[Checkout] Storing checkout session in Firestore:', session.id);
       // Store checkout session in Firestore
       try {
         await setDoc(doc(db, 'checkout_sessions', session.id), {
@@ -171,9 +243,14 @@ export async function POST(req: Request) {
           sessionId: session.id,
           metadata: session.metadata
         });
-        console.log('Successfully stored checkout session');
+        console.log('[Checkout] Successfully stored checkout session');
       } catch (error) {
-        console.error('Error storing checkout session in Firestore:', error);
+        console.error('[Checkout] Error storing checkout session in Firestore:', {
+          error,
+          message: (error as Error).message,
+          code: (error as any).code,
+          stack: (error as Error).stack
+        });
         throw error;
       }
 
@@ -182,11 +259,23 @@ export async function POST(req: Request) {
         url: session.url
       });
     } catch (error) {
-      console.error('Error creating Stripe checkout session:', error);
+      console.error('[Checkout] Error creating Stripe checkout session:', {
+        error,
+        message: (error as Error).message,
+        code: (error as any).code,
+        type: (error as any).type,
+        stack: (error as Error).stack
+      });
       throw error;
     }
   } catch (error) {
-    console.error('Error in create-checkout-session:', error);
+    console.error('[Checkout] Error in create-checkout-session:', {
+      error,
+      message: (error as Error).message,
+      code: (error as any).code,
+      type: (error as any).type,
+      stack: (error as Error).stack
+    });
     return NextResponse.json(
       { 
         error: 'Error creating checkout session',
