@@ -30,6 +30,7 @@ import {
 import MemoryNotification from '../../components/MemoryNotification';
 import { Timestamp } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
+import { canSendMessage, incrementMessageCount, canUploadFile, incrementFileUpload, getUsageStats } from '@/lib/usage';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -290,6 +291,12 @@ export default function Dashboard() {
     seatsAllowed?: number;
     trialEndsAt?: Timestamp;
   } | null>(null);
+  const [showDailyLimitError, setShowDailyLimitError] = useState(false);
+  const [usageStats, setUsageStats] = useState<{
+    messagesToday: number;
+    filesUploaded: number;
+    remaining: number;
+  }>({ messagesToday: 0, filesUploaded: 0, remaining: 25 });
 
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
@@ -374,6 +381,16 @@ export default function Dashboard() {
     if (!user) {
       console.log("[Dashboard] No authenticated user found");
       return;
+    }
+
+    // Check message limit for free plan
+    if (userSubscription?.plan === 'free') {
+      const messageCheck = await canSendMessage(user.uid);
+      if (!messageCheck.allowed) {
+        setShowDailyLimitError(true);
+        setTimeout(() => setShowDailyLimitError(false), 5000);
+        return;
+      }
     }
 
     // If no active conversation, create one
@@ -530,6 +547,17 @@ When responding:
         }
       }
 
+      // After successful message send, increment counter for free plan
+      if (userSubscription?.plan === 'free') {
+        await incrementMessageCount(user.uid);
+        const messageCheck = await canSendMessage(user.uid);
+        setUsageStats(prev => ({
+          ...prev,
+          messagesToday: prev.messagesToday + 1,
+          remaining: messageCheck.remaining
+        }));
+      }
+
     } catch (error) {
       console.error("[Dashboard] Error sending message:", error);
     }
@@ -559,6 +587,19 @@ When responding:
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Check file upload limit for free plan
+    if (userSubscription?.plan === 'free') {
+      if (usageStats.filesUploaded >= 3) {
+        setShowDailyLimitError(true);
+        setTimeout(() => setShowDailyLimitError(false), 5000);
+        return;
+      }
+    }
+
     const newFiles: UploadedFile[] = [];
     for (let i = 0; i < files.length && uploads.length + newFiles.length < 3; i++) {
       const file = files[i];
@@ -569,6 +610,16 @@ When responding:
         newFiles.push({ id, file, url: '', type: 'pdf', name: file.name });
       }
     }
+
+    // Increment file upload counter for free plan
+    if (userSubscription?.plan === 'free' && newFiles.length > 0) {
+      incrementFileUpload(user.uid);
+      setUsageStats(prev => ({
+        ...prev,
+        filesUploaded: prev.filesUploaded + newFiles.length
+      }));
+    }
+
     setUploads(prev => [...prev, ...newFiles].slice(0, 3));
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
@@ -829,8 +880,58 @@ When responding:
     }
   };
 
+  // Add effect to fetch usage stats
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const fetchUsageStats = async () => {
+      const stats = await getUsageStats(user.uid);
+      const messageCheck = await canSendMessage(user.uid);
+      setUsageStats({
+        messagesToday: stats.messagesToday,
+        filesUploaded: stats.filesUploaded,
+        remaining: messageCheck.remaining
+      });
+    };
+
+    fetchUsageStats();
+  }, [auth.currentUser]);
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      {/* Daily limit error message */}
+      {showDailyLimitError && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3 animate-fade-in">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>You've reached your daily message limit</span>
+          <button
+            onClick={() => setSubscriptionOpen(true)}
+            className="ml-2 bg-white text-red-500 px-3 py-1 rounded hover:bg-red-50 transition-colors"
+          >
+            Upgrade Plan
+          </button>
+        </div>
+      )}
+
+      {/* Show usage stats for free plan */}
+      {userSubscription?.plan === 'free' && (
+        <div className="fixed top-4 left-4 z-50 bg-zinc-800/80 text-white px-4 py-2 rounded-lg text-sm">
+          Messages: {usageStats.messagesToday}/25 today
+        </div>
+      )}
+
+      {/* Show Xognito branding for free plan */}
+      {userSubscription?.plan === 'free' && (
+        <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-zinc-400 text-xs">
+          Powered by Xognito
+        </div>
+      )}
+
       {/* Profile picture and add family button in top right */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
         {/* Add family member button */}
