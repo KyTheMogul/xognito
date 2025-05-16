@@ -73,6 +73,8 @@ async function fetchDeepSeekResponseStream(
         model: 'deepseek-chat',
         messages,
         stream: true,
+        temperature: 0.7,
+        max_tokens: 1000
       }),
     });
 
@@ -110,7 +112,10 @@ async function fetchDeepSeekResponseStream(
           if (!trimmed || !trimmed.startsWith('data:')) continue;
           
           const data = trimmed.replace(/^data:/, '');
-          if (data === '[DONE]') return;
+          if (data === '[DONE]') {
+            console.log("[DeepSeek] Stream complete");
+            return;
+          }
           
           try {
             const parsed = JSON.parse(data);
@@ -120,7 +125,7 @@ async function fetchDeepSeekResponseStream(
               onChunk(delta);
             }
           } catch (e) {
-            console.error("[DeepSeek] Error parsing chunk:", e);
+            console.error("[DeepSeek] Error parsing chunk:", e, "Raw data:", data);
           }
         }
       }
@@ -436,9 +441,11 @@ export default function Dashboard() {
         { role: 'user', content: input }
       ];
 
+      console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
       let aiResponse = '';
       try {
         await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+          console.log("[Dashboard] Received chunk:", chunk);
           aiResponse += chunk;
           // Update the AI message in Firestore with the current response
           const updatedAiMessage: Omit<Message, 'timestamp'> = {
@@ -446,8 +453,12 @@ export default function Dashboard() {
             text: aiResponse,
             thinking: false
           };
-          updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
+          updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage)
+            .catch(error => {
+              console.error("[Dashboard] Error updating AI message:", error);
+            });
         });
+        console.log("[Dashboard] Stream complete, final response:", aiResponse);
       } catch (error) {
         console.error("[Dashboard] Error in DeepSeek API call:", error);
         // Update with error message
@@ -456,7 +467,10 @@ export default function Dashboard() {
           text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
           thinking: false
         };
-        await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage);
+        await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage)
+          .catch(error => {
+            console.error("[Dashboard] Error updating error message:", error);
+          });
       }
 
       // Update lastTriggered for any memories that were referenced
