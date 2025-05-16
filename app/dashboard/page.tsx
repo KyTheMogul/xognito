@@ -59,26 +59,26 @@ async function fetchDeepSeekResponseStream(
 ): Promise<void> {
   try {
     console.log("[DeepSeek] Starting API call with messages:", messages);
-    const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
     if (!apiKey) {
       console.error("[DeepSeek] No API key found");
       throw new Error('DeepSeek API key not set');
     }
 
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages,
-        stream: true,
+  const res = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages,
+      stream: true,
         temperature: 0.7,
         max_tokens: 1000
-      }),
-    });
+    }),
+  });
 
     if (!res.ok) {
       const errorText = await res.text();
@@ -95,33 +95,33 @@ async function fetchDeepSeekResponseStream(
       throw new Error('No response body from DeepSeek API');
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let done = false;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let done = false;
 
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
       
-      if (value) {
-        buffer += decoder.decode(value, { stream: true });
-        let lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      let lines = buffer.split('\n');
+      buffer = lines.pop() || '';
         
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data:')) continue;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
           
-          const data = trimmed.replace(/^data:/, '');
+        const data = trimmed.replace(/^data:/, '');
           if (data === '[DONE]') {
             console.log("[DeepSeek] Stream complete");
             return;
           }
           
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               console.log("[DeepSeek] Received chunk:", delta);
               onChunk(delta);
@@ -1028,9 +1028,9 @@ When responding:
                   variant={activeConversationId === chat.id ? 'default' : 'ghost'}
                   className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'}`}
                   onClick={() => setActiveConversationId(chat.id)}
-                >
+              >
                   {chat.title}
-                </Button>
+              </Button>
                 {/* Trash can icon on hover */}
                 {hoveredChatId === chat.id && (
                   <button
@@ -1109,39 +1109,39 @@ When responding:
               </div>
             ) : (
               messages.slice().reverse().map((msg, idx) => (
-                <div key={idx} className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {msg.sender === 'ai' && (
-                    <img src={AI_PROFILE} alt="AI" className="w-10 h-10 rounded-full mr-2 border border-white object-cover" />
-                  )}
-                  <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${msg.sender === 'user' ? 'bg-white text-black ml-2' : 'bg-transparent text-white mr-2'}`}>
-                    <>
-                      {msg.sender === 'ai' && (msg as any).thinking ? (
-                        <span className="inline-block w-8">
-                          <span className="dot-anim-smooth">.</span>
-                          <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
-                          <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
-                        </span>
-                      ) : msg.sender === 'ai' ? renderAIMessage(msg.text) : msg.text}
-                      {/* If user message has files, show them below the bubble */}
-                      {msg.sender === 'user' && Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
-                        <div className="flex flex-col gap-2 mt-3">
-                          {(msg as any).files.map((f: UploadedFile) => (
-                            f.type === 'image' ? (
-                              <img key={f.id} src={f.url} alt={f.name} className="rounded-xl max-w-xs max-h-48 border border-zinc-700" />
-                            ) : (
-                              <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
-                                {f.name}
-                              </div>
-                            )
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  </div>
-                  {msg.sender === 'user' && (
-                    <img src={USER_PROFILE} alt="You" className="w-10 h-10 rounded-full ml-2 border border-white object-cover" />
-                  )}
-                </div>
+                <div key={idx} className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} mt-4`}>
+              {msg.sender === 'ai' && (
+                <img src={AI_PROFILE} alt="AI" className="w-10 h-10 rounded-full mr-2 border border-white object-cover" />
+              )}
+              <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${msg.sender === 'user' ? 'bg-white text-black ml-2' : 'bg-transparent text-white mr-2'}`}>
+                  <>
+                    {msg.sender === 'ai' && (msg as any).thinking ? (
+                      <span className="inline-block w-8">
+                        <span className="dot-anim-smooth">.</span>
+                        <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
+                        <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
+                      </span>
+                    ) : msg.sender === 'ai' ? renderAIMessage(msg.text) : msg.text}
+                    {/* If user message has files, show them below the bubble */}
+                    {msg.sender === 'user' && Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
+                      <div className="flex flex-col gap-2 mt-3">
+                        {(msg as any).files.map((f: UploadedFile) => (
+                          f.type === 'image' ? (
+                            <img key={f.id} src={f.url} alt={f.name} className="rounded-xl max-w-xs max-h-48 border border-zinc-700" />
+                          ) : (
+                            <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
+                              {f.name}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    )}
+                  </>
+              </div>
+              {msg.sender === 'user' && (
+                <img src={USER_PROFILE} alt="You" className="w-10 h-10 rounded-full ml-2 border border-white object-cover" />
+              )}
+            </div>
               ))
             )}
             {/* Invisible tab bar for spacing at the bottom */}
@@ -1300,7 +1300,7 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Personality</h4>
                         <p className="text-zinc-300 text-sm">Xognito is designed to be calm, focused, and sharply intelligent — like JARVIS from Iron Man.</p>
-                      </div>
+              </div>
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Core Principles</h4>
                         <ul className="text-zinc-300 text-sm space-y-2">
