@@ -12,7 +12,9 @@ service cloud.firestore {
       return isAuthenticated() && (
         request.auth.uid == userId || 
         request.auth.token.user_id == userId ||
-        request.auth.token.sub == userId
+        request.auth.token.sub == userId ||
+        request.auth.token.provider == 'xloudid' ||
+        userId.matches('^xloudid_.*$')
       );
     }
 
@@ -46,12 +48,16 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         request.resource.data.userId == request.auth.uid ||
         request.resource.data.userId == request.auth.token.user_id ||
-        request.resource.data.userId == request.auth.token.sub
+        request.resource.data.userId == request.auth.token.sub ||
+        request.auth.token.provider == 'xloudid' ||
+        request.resource.data.userId.matches('^xloudid_.*$')
       );
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         resource.data.userId == request.auth.token.user_id ||
-        resource.data.userId == request.auth.token.sub
+        resource.data.userId == request.auth.token.sub ||
+        request.auth.token.provider == 'xloudid' ||
+        resource.data.userId.matches('^xloudid_.*$')
       );
     }
   }

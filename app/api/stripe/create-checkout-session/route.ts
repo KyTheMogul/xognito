@@ -54,16 +54,26 @@ export async function POST(req: Request) {
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (!userDoc.exists()) {
         // If not found with custom ID, try to find by Firebase UID
-        const decodedToken = await auth().verifyIdToken(userId);
-        const firebaseUid = decodedToken.uid;
-        const userDocByUid = await getDoc(doc(db, 'users', firebaseUid));
-        
-        if (!userDocByUid.exists()) {
-          console.error('User not found in Firestore:', { userId, firebaseUid });
-          return NextResponse.json(
-            { error: 'User not found' },
-            { status: 404 }
-          );
+        try {
+          const decodedToken = await auth().verifyIdToken(userId);
+          const firebaseUid = decodedToken.uid;
+          const userDocByUid = await getDoc(doc(db, 'users', firebaseUid));
+          
+          if (!userDocByUid.exists()) {
+            console.error('User not found in Firestore:', { userId, firebaseUid });
+            return NextResponse.json(
+              { error: 'User not found' },
+              { status: 404 }
+            );
+          }
+        } catch (tokenError) {
+          // If token verification fails, try to create the user document
+          console.log('Token verification failed, creating user document:', userId);
+          await setDoc(doc(db, 'users', userId), {
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+            provider: 'xloudid'
+          });
         }
       }
     } catch (error) {
