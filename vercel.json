@@ -3,12 +3,15 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "ignoreCommand": "echo 'Skipping build'",
   "outputDirectory": ".next",
   "builds": [
     {
       "src": "package.json",
-      "use": "@vercel/next"
+      "use": "@vercel/next",
+      "config": {
+        "buildCommand": "npm run build",
+        "outputDirectory": ".next"
+      }
     }
   ],
   "routes": [
