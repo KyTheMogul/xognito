@@ -28,6 +28,7 @@ import {
   type Memory 
 } from '@/lib/memory';
 import MemoryNotification from '../../components/MemoryNotification';
+import { Timestamp } from 'firebase/firestore';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -236,6 +237,24 @@ export default function Dashboard() {
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
     : conversations;
+
+  const examplePrompts = [
+    "What do you remember about my work schedule?",
+    "Can you help me learn more about AI?",
+    "Remember that I prefer to work in the morning",
+    "What are my current learning goals?"
+  ];
+
+  const handleExampleClick = (prompt: string) => {
+    setInput(prompt);
+    // Remove empty state by triggering a small state change
+    setMessages([{ 
+      id: 'temp', 
+      sender: 'ai', 
+      text: '', 
+      timestamp: Timestamp.now() 
+    }]);
+  };
 
   // Real-time conversations
   useEffect(() => {
@@ -791,41 +810,61 @@ export default function Dashboard() {
         <div className="w-full max-w-3xl mx-auto flex flex-col gap-6 mt-8 relative" style={{ height: '75vh' }}>
           <div className="flex-1 overflow-y-auto pr-2 flex flex-col-reverse hide-scrollbar" style={{ height: '100%' }}>
             <div ref={chatEndRef} />
-            {messages.slice().reverse().map((msg, idx) => (
-            <div key={idx} className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.sender === 'ai' && (
-                <img src={AI_PROFILE} alt="AI" className="w-10 h-10 rounded-full mr-2 border border-white object-cover" />
-              )}
-              <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${msg.sender === 'user' ? 'bg-white text-black ml-2' : 'bg-transparent text-white mr-2'}`}>
-                  <>
-                    {msg.sender === 'ai' && (msg as any).thinking ? (
-                      <span className="inline-block w-8">
-                        <span className="dot-anim-smooth">.</span>
-                        <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
-                        <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
-                      </span>
-                    ) : msg.sender === 'ai' ? renderAIMessage(msg.text) : msg.text}
-                    {/* If user message has files, show them below the bubble */}
-                    {msg.sender === 'user' && Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
-                      <div className="flex flex-col gap-2 mt-3">
-                        {(msg as any).files.map((f: UploadedFile) => (
-                          f.type === 'image' ? (
-                            <img key={f.id} src={f.url} alt={f.name} className="rounded-xl max-w-xs max-h-48 border border-zinc-700" />
-                          ) : (
-                            <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
-                              {f.name}
-                            </div>
-                          )
-                        ))}
-                      </div>
-                    )}
-                  </>
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center space-y-8">
+                <h2 className="text-2xl font-bold text-white/80">Welcome to Xognito</h2>
+                <p className="text-white/60 text-center max-w-md">
+                  Your AI companion with memory capabilities. Try asking something or use one of these examples:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl px-4">
+                  {examplePrompts.map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleExampleClick(prompt)}
+                      className="p-4 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors border border-white/10 hover:border-white/20"
+                    >
+                      <p className="text-white/80">{prompt}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-              {msg.sender === 'user' && (
-                <img src={USER_PROFILE} alt="You" className="w-10 h-10 rounded-full ml-2 border border-white object-cover" />
-              )}
-            </div>
-          ))}
+            ) : (
+              messages.slice().reverse().map((msg, idx) => (
+                <div key={idx} className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.sender === 'ai' && (
+                    <img src={AI_PROFILE} alt="AI" className="w-10 h-10 rounded-full mr-2 border border-white object-cover" />
+                  )}
+                  <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${msg.sender === 'user' ? 'bg-white text-black ml-2' : 'bg-transparent text-white mr-2'}`}>
+                    <>
+                      {msg.sender === 'ai' && (msg as any).thinking ? (
+                        <span className="inline-block w-8">
+                          <span className="dot-anim-smooth">.</span>
+                          <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
+                          <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
+                        </span>
+                      ) : msg.sender === 'ai' ? renderAIMessage(msg.text) : msg.text}
+                      {/* If user message has files, show them below the bubble */}
+                      {msg.sender === 'user' && Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
+                        <div className="flex flex-col gap-2 mt-3">
+                          {(msg as any).files.map((f: UploadedFile) => (
+                            f.type === 'image' ? (
+                              <img key={f.id} src={f.url} alt={f.name} className="rounded-xl max-w-xs max-h-48 border border-zinc-700" />
+                            ) : (
+                              <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
+                                {f.name}
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  </div>
+                  {msg.sender === 'user' && (
+                    <img src={USER_PROFILE} alt="You" className="w-10 h-10 rounded-full ml-2 border border-white object-cover" />
+                  )}
+                </div>
+              ))
+            )}
             {/* Invisible tab bar for spacing at the bottom */}
             <div style={{ height: '96px', width: '100%' }} />
           </div>
