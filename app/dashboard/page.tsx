@@ -1059,7 +1059,7 @@ When responding:
       )}
 
       {/* Profile picture and add family button in top right */}
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
         {userSubscription?.plan === 'free' ? (
           <Button
             onClick={() => setSubscriptionOpen(true)}
@@ -1087,63 +1087,66 @@ When responding:
               </div>
             )}
 
-        {/* Add family member button */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
+            {/* Add family member button */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
                 onClick={() => setShowInviteModal(true)}
-            aria-label="Add family member"
+                aria-label="Add family member"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </Button>
+              {showTooltip && (
+                <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
+                  Add family member
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Profile picture and menu */}
+        <div className="relative">
+          <button
+            onClick={() => setProfileMenuOpen((v) => !v)}
+            className="focus:outline-none"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </Button>
-          {showTooltip && (
-            <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
-              Add family member
+            <img
+              src={USER_PROFILE}
+              alt="Profile"
+              className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer hover:opacity-90 transition-opacity"
+            />
+          </button>
+          {profileMenuOpen && (
+            <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
+              <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
+              <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
+                {userSubscription?.plan === 'free' ? 'Free Plan' : 'Pro Plan'}
+              </div>
+              <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
+                Manage Subscription
+              </Button>
+              <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                Settings
+              </Button>
+              <Button 
+                className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" 
+                variant="ghost"
+                onClick={() => signOut(auth)}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                Logout
+              </Button>
             </div>
           )}
         </div>
-
-        <button
-          onClick={() => setProfileMenuOpen((v) => !v)}
-          className="focus:outline-none"
-        >
-          <img
-            src={USER_PROFILE}
-            alt="Profile"
-            className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer"
-          />
-        </button>
-        {profileMenuOpen && (
-          <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
-            <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
-            <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
-              {/* Free plan icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
-              Free Plan
-            </div>
-            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
-              {/* Manage subscription icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
-              Manage Subscription
-            </Button>
-            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
-              {/* Settings icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-              Settings
-            </Button>
-            <Button className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost">
-              {/* Logout icon */}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-              Logout
-            </Button>
-          </div>
-            )}
-          </>
-        )}
       </div>
       {/* Sidebar */}
       <div
