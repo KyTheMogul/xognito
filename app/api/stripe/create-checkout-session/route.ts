@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { stripe } from '@/lib/stripe';
-import { auth } from '@/lib/firebase';
+import { auth } from 'firebase-admin';
 
 const PLANS = {
   pro: {
@@ -50,13 +50,21 @@ export async function POST(req: Request) {
 
     // Verify the user exists in Firestore
     try {
+      // For XloudID users, we need to check both the custom ID and the Firebase UID
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (!userDoc.exists()) {
-        console.error('User not found in Firestore:', userId);
-        return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
+        // If not found with custom ID, try to find by Firebase UID
+        const decodedToken = await auth().verifyIdToken(userId);
+        const firebaseUid = decodedToken.uid;
+        const userDocByUid = await getDoc(doc(db, 'users', firebaseUid));
+        
+        if (!userDocByUid.exists()) {
+          console.error('User not found in Firestore:', { userId, firebaseUid });
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
       }
     } catch (error) {
       console.error('Error checking user in Firestore:', error);
