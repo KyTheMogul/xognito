@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const { plan, userId, email } = await req.json();
 
     if (!plan || !userId || !email) {
+      console.error('Missing required fields:', { plan, userId, email });
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -51,6 +52,7 @@ export async function POST(req: Request) {
 
     const planDetails = PLANS[plan as keyof typeof PLANS];
     if (!planDetails) {
+      console.error('Invalid plan selected:', plan);
       return NextResponse.json(
         { error: 'Invalid plan selected' },
         { status: 400 }
@@ -59,55 +61,71 @@ export async function POST(req: Request) {
 
     // Create or get Stripe customer
     let customerId: string;
-    const customerSnapshot = await stripe.customers.list({
-      email,
-      limit: 1,
-    });
-
-    if (customerSnapshot.data.length > 0) {
-      customerId = customerSnapshot.data[0].id;
-    } else {
-      const customer = await stripe.customers.create({
+    try {
+      const customerSnapshot = await stripe.customers.list({
         email,
-        metadata: {
-          userId,
-        },
+        limit: 1,
       });
-      customerId = customer.id;
+
+      if (customerSnapshot.data.length > 0) {
+        customerId = customerSnapshot.data[0].id;
+      } else {
+        const customer = await stripe.customers.create({
+          email,
+          metadata: {
+            userId,
+          },
+        });
+        customerId = customer.id;
+      }
+    } catch (error) {
+      console.error('Error with Stripe customer:', error);
+      return NextResponse.json(
+        { error: 'Error creating/retrieving customer' },
+        { status: 500 }
+      );
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: planDetails.name,
-              description: planDetails.features.join('\n'),
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: planDetails.name,
+                description: planDetails.features.join('\n'),
+              },
+              unit_amount: planDetails.price,
+              recurring: {
+                interval: 'month',
+              },
             },
-            unit_amount: planDetails.price,
-            recurring: {
-              interval: 'month',
-            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        mode: 'subscription',
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+        metadata: {
+          userId,
+          plan,
         },
-      ],
-      mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-      metadata: {
-        userId,
-        plan,
-      },
-    });
+      });
 
-    return NextResponse.json({ sessionId: session.id });
+      return NextResponse.json({ sessionId: session.id });
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      return NextResponse.json(
+        { error: 'Error creating checkout session' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    console.error('Error in checkout session creation:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

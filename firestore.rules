@@ -30,6 +30,11 @@ service cloud.firestore {
       match /memory/{memoryId} {
         allow read, write: if isOwner(userId);
       }
+
+      // Nested subscription collection
+      match /subscription/{subscriptionId} {
+        allow read, write: if isOwner(userId);
+      }
     }
   }
 } 
