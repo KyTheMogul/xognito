@@ -1195,9 +1195,11 @@ When responding:
                   variant={activeConversationId === chat.id ? 'default' : 'ghost'}
                   className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'}`}
                   onClick={() => setActiveConversationId(chat.id)}
-              >
-                  {chat.title}
-              </Button>
+                >
+                  <div className="truncate overflow-hidden whitespace-nowrap group-hover:animate-slide-text">
+                    {chat.title}
+                  </div>
+                </Button>
                 {/* Trash can icon on hover */}
                 {hoveredChatId === chat.id && (
                   <button
@@ -1760,6 +1762,18 @@ When responding:
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background-color: rgba(255, 255, 255, 0.3);
+        }
+        @keyframes slide-text {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-100%); }
+        }
+        .animate-slide-text {
+          animation: slide-text 8s linear infinite;
+          display: inline-block;
+          padding-right: 20px;
+        }
+        .animate-slide-text:hover {
+          animation-play-state: paused;
         }
       `}</style>
 
