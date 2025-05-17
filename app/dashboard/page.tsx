@@ -285,6 +285,12 @@ type LinkedUser = {
   displayName: string;
 };
 
+// Add this helper function near the top with other utility functions
+function getFirstName(displayName: string | null): string {
+  if (!displayName) return 'User';
+  return displayName.split(' ')[0];
+}
+
 // Force new deployment - May 15, 2024
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -594,6 +600,8 @@ Core principles:
 - Avoid typical AI phrases like "As an AI…" or "Sure! Let me…" — you're not a chatbot.
 - You remember what matters and adapt naturally, like a real assistant.
 
+User's name: ${getFirstName(user?.displayName)}
+
 ${memoryContext}
 
 When responding:
@@ -602,7 +610,8 @@ When responding:
 3. Don't make assumptions
 4. Ask for clarification if needed
 5. When someone shares something with you, acknowledge it naturally
-6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note`
+6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
+7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate`
         },
         { role: 'user', content: input }
       ];
@@ -1333,6 +1342,8 @@ Core principles:
 - Avoid typical AI phrases like "As an AI…" or "Sure! Let me…" — you're not a chatbot.
 - You remember what matters and adapt naturally, like a real assistant.
 
+User's name: ${getFirstName(user?.displayName)}
+
 ${memoryContext}
 
 When responding:
@@ -1341,7 +1352,8 @@ When responding:
 3. Don't make assumptions
 4. Ask for clarification if needed
 5. When someone shares something with you, acknowledge it naturally
-6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note`
+6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
+7. When referring to the user who triggered the AI response, use their first name (${getFirstName(user?.displayName)}) if appropriate`
           },
           { role: 'user', content: messageText }
         ];
