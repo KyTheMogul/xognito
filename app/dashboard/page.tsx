@@ -1666,20 +1666,25 @@ When responding:
       {/* Hamburger Icon - only show when sidebar is closed */}
       {!sidebarOpen && (
         <div className="absolute top-4 left-4 z-50 flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
+          <img 
+            src="/XognitoLogo.png" 
+            alt="Xognito" 
+            className="h-8 w-auto"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
             className="bg-transparent text-white rounded-full w-12 h-12 flex items-center justify-center"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open sidebar"
-        >
-          {/* Hamburger SVG */}
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu">
-            <line x1="4" x2="20" y1="12" y2="12" />
-            <line x1="4" x2="20" y1="6" y2="6" />
-            <line x1="4" x2="20" y1="18" y2="18" />
-          </svg>
-        </Button>
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open sidebar"
+          >
+            {/* Hamburger SVG */}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu">
+              <line x1="4" x2="20" y1="12" y2="12" />
+              <line x1="4" x2="20" y1="6" y2="6" />
+              <line x1="4" x2="20" y1="18" y2="18" />
+            </svg>
+          </Button>
         </div>
       )}
 
