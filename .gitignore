@@ -43,3 +43,4 @@ next-env.d.ts
 # Firebase Functions
 firebase/functions/lib/
 firebase/functions/node_modules/
+firebase-debug.log
