@@ -62,7 +62,6 @@ import InviteUserModal from '@/components/InviteUserModal';
 import InvitationNotification from '@/components/InvitationNotification';
 import { Suspense } from 'react';
 import GroupRequestNotification from '../components/GroupRequestNotification';
-import { useAuth } from '../context/AuthContext';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -349,7 +348,13 @@ export default function Dashboard() {
   const [groupDescription, setGroupDescription] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const [hostXloudID, setHostXloudID] = useState('');
-  const [userGroups, setUserGroups] = useState<{ id: string; name: string; code: string; hostXloudID: string; description?: string; }[]>([]);
+  const [userGroups, setUserGroups] = useState<Array<{
+    id: string;
+    name: string;
+    code: string;
+    hostXloudID: string;
+    description?: string;
+  }>>([]);
   const [searchResults, setSearchResults] = useState<Array<{
     uid: string;
     email: string;
@@ -1331,26 +1336,31 @@ When responding:
     }
   };
 
-  const { user } = useAuth();
-
   useEffect(() => {
+    const user = auth.currentUser;
     if (!user) return;
 
     // Listen for user groups
     const groupsRef = collection(db, 'users', user.uid, 'groups');
-    const groupsUnsubscribe = onSnapshot(groupsRef, (snapshot) => {
+    const unsubscribe = onSnapshot(groupsRef, (snapshot) => {
       const groups = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as { id: string; name: string; code: string; hostXloudID: string; description?: string; }[];
+      })) as Array<{
+        id: string;
+        name: string;
+        code: string;
+        hostXloudID: string;
+        description?: string;
+      }>;
       setUserGroups(groups);
     });
 
     // Cleanup function
     return () => {
-      groupsUnsubscribe();
+      unsubscribe();
     };
-  }, [user]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
