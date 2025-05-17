@@ -6,11 +6,6 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if user owns the document
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
 
     function isInvitedUser() {
       return isAuthenticated() && 
@@ -21,42 +16,76 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow create: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+      );
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+      );
       
       // Nested conversations collection
       match /conversations/{conversationId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+        );
         
         // Nested messages collection
         match /messages/{messageId} {
-          allow read, write: if isOwner(userId);
+          allow read, write: if isAuthenticated() && (
+            request.auth.uid == userId || 
+            (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+          );
         }
       }
 
       // Nested memory collection
       match /memory/{memoryId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+        );
       }
 
       // User's subscription
       match /subscription/{docId} {
         allow read: if isAuthenticated() && (
-          isOwner(userId) || 
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$')) ||
           isInvitedUser() && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.invitedBy == userId
         );
-        allow write: if isOwner(userId);
+        allow write: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+        );
       }
 
       // Nested usageStats collection
       match /usageStats/{statsId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+        );
       }
 
       // Nested collections under users
       match /{collection}/{document=**} {
         allow read: if isAuthenticated();
-        allow write: if isOwner(userId);
+        allow write: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+        );
+      }
+
+      // User's groups collection
+      match /groups/{groupId} {
+        allow read, write: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
+        );
       }
     }
 

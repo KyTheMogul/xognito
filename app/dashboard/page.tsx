@@ -62,6 +62,7 @@ import InviteUserModal from '@/components/InviteUserModal';
 import InvitationNotification from '@/components/InvitationNotification';
 import { Suspense } from 'react';
 import GroupRequestNotification from '../components/GroupRequestNotification';
+import { useAuth } from '../context/AuthContext';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -348,13 +349,7 @@ export default function Dashboard() {
   const [groupDescription, setGroupDescription] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const [hostXloudID, setHostXloudID] = useState('');
-  const [userGroups, setUserGroups] = useState<Array<{
-    id: string;
-    name: string;
-    code: string;
-    hostXloudID: string;
-    description?: string;
-  }>>([]);
+  const [userGroups, setUserGroups] = useState<{ id: string; name: string; code: string; hostXloudID: string; description?: string; }[]>([]);
   const [searchResults, setSearchResults] = useState<Array<{
     uid: string;
     email: string;
@@ -1080,35 +1075,42 @@ When responding:
     // Generate a random group code starting with $
     const groupCode = `$${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     
-    // Create group in Firestore
-    const groupRef = await addDoc(collection(db, 'groups'), {
-      groupName: groupName,
-      groupCode,
-      hostXloudID: user.uid,
-      description: groupDescription,
-      createdAt: serverTimestamp(),
-      members: [user.uid],
-      pendingRequests: [],
-      blockedUsers: [],
-      capacity: 8
-    });
+    try {
+      // Create group in Firestore
+      const groupRef = await addDoc(collection(db, 'groups'), {
+        name: groupName,
+        code: groupCode,
+        hostXloudID: user.uid,
+        description: groupDescription,
+        createdAt: serverTimestamp(),
+        members: [user.uid],
+        pendingRequests: [],
+        blockedUsers: [],
+        capacity: 8
+      });
 
-    // Add to user's groups
-    await setDoc(doc(db, 'users', user.uid, 'groups', groupRef.id), {
-      isHost: true,
-      joinedAt: serverTimestamp()
-    });
+      // Add to user's groups
+      await setDoc(doc(db, 'users', user.uid, 'groups', groupRef.id), {
+        isHost: true,
+        joinedAt: serverTimestamp()
+      });
 
-    // Update local state
-    setUserGroups(prev => [...prev, {
-      id: groupRef.id,
-      name: groupName,
-      code: groupCode,
-      hostXloudID: user.uid,
-      description: groupDescription
-    }]);
+      // Update local state
+      setUserGroups(prev => [...prev, {
+        id: groupRef.id,
+        name: groupName,
+        code: groupCode,
+        hostXloudID: user.uid,
+        description: groupDescription
+      }]);
 
-    setShowGroupModal(false);
+      setShowGroupModal(false);
+      setGroupName('');
+      setGroupDescription('');
+    } catch (error) {
+      console.error('Error creating group:', error);
+      alert('Failed to create group. Please try again.');
+    }
   };
 
   const handleJoinGroup = async () => {
@@ -1328,6 +1330,27 @@ When responding:
       console.error('Error sending group message:', error);
     }
   };
+
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen for user groups
+    const groupsRef = collection(db, 'users', user.uid, 'groups');
+    const groupsUnsubscribe = onSnapshot(groupsRef, (snapshot) => {
+      const groups = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as { id: string; name: string; code: string; hostXloudID: string; description?: string; }[];
+      setUserGroups(groups);
+    });
+
+    // Cleanup function
+    return () => {
+      groupsUnsubscribe();
+    };
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">

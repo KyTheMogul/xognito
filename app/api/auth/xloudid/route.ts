@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from 'firebase-admin';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 console.log("[XloudID API] API route loaded");
 
@@ -50,6 +51,9 @@ if (!getApps().length) {
     throw error;
   }
 }
+
+// Initialize Firestore
+const adminDb = getFirestore();
 
 export async function POST(request: Request) {
   console.log("[XloudID API] POST request received");
