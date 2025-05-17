@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { auth, db } from '@/lib/firebase';
-import { signOut, signInWithCustomToken } from 'firebase/auth';
+import { signOut, signInWithCustomToken, updateProfile, updateEmail, deleteUser } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { 
   collection, 
@@ -151,8 +151,7 @@ async function fetchDeepSeekResponseStream(
           }
         }
       }
-    }
-  } catch (error) {
+    } catch (error) {
     console.error("[DeepSeek] Error in API call:", {
       error,
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -377,6 +376,13 @@ export default function Dashboard() {
     hostXloudID: string;
     description?: string;
   }>>([]);
+  const [user, setUser] = useState<any>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   // Update search filtering
   useEffect(() => {
@@ -1405,6 +1411,73 @@ When responding:
     };
   }, [auth.currentUser]);
 
+  // Add this effect to fetch user data
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      setUser(currentUser);
+      setDisplayName(currentUser.displayName || '');
+      setEmail(currentUser.email || '');
+      setPhoneNumber(currentUser.phoneNumber || '');
+    }
+  }, [auth.currentUser]);
+
+  // Add these functions for account settings
+  const handleUpdateProfile = async (field: string, value: string) => {
+    if (!user) return;
+    
+    setIsUpdating(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      switch (field) {
+        case 'displayName':
+          await updateProfile(user, { displayName: value });
+          setSuccess('Display name updated successfully');
+          break;
+        case 'email':
+          await updateEmail(user, value);
+          setSuccess('Email updated successfully');
+          break;
+        case 'phoneNumber':
+          // TODO: Implement phone number update with Firebase Phone Auth
+          setSuccess('Phone number update coming soon');
+          break;
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      try {
+        await deleteUser(user);
+        window.location.href = 'https://auth.xloudone.com';
+      } catch (error: any) {
+        setError(error.message);
+      }
+    }
+  };
+
+  const handleArchiveAccount = async () => {
+    if (!user) return;
+    
+    if (window.confirm('Are you sure you want to archive your account? You can restore it within 30 days.')) {
+      try {
+        // TODO: Implement account archiving logic
+        setSuccess('Account archived successfully');
+      } catch (error: any) {
+        setError(error.message);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       {/* Daily limit error message */}
@@ -1890,7 +1963,143 @@ When responding:
                 {settingsTab === 'account' && (
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Account Settings</h3>
-                    <div className="text-zinc-300">Change your email, username, and other account details here.</div>
+                    
+                    {error && (
+                      <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg">
+                        {error}
+                      </div>
+                    )}
+                    
+                    {success && (
+                      <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-2 rounded-lg">
+                        {success}
+                      </div>
+                    )}
+                    
+                    {/* Profile Picture */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-4">Profile Picture</h4>
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <img
+                            src={user?.photoURL || USER_PROFILE}
+                            alt="Profile"
+                            className="w-20 h-20 rounded-full border-2 border-white object-cover"
+                          />
+                          <button
+                            className="absolute bottom-0 right-0 bg-black rounded-full p-1.5 border border-white hover:bg-zinc-800 transition-colors"
+                            onClick={() => {/* TODO: Implement profile picture upload */}}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="17 8 12 3 7 8" />
+                              <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="text-zinc-300 text-sm">
+                          <p>Upload a new profile picture</p>
+                          <p className="text-zinc-400 text-xs mt-1">JPG, PNG or GIF (max. 2MB)</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Display Name */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-4">Display Name</h4>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="text"
+                          placeholder="Enter your display name"
+                          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                        />
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => handleUpdateProfile('displayName', displayName)}
+                          disabled={isUpdating}
+                        >
+                          {isUpdating ? 'Updating...' : 'Update'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-4">Email Address</h4>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="email"
+                          placeholder="Enter your email"
+                          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => handleUpdateProfile('email', email)}
+                          disabled={isUpdating}
+                        >
+                          {isUpdating ? 'Updating...' : 'Update'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Phone Number */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-4">Phone Number (Optional)</h4>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="tel"
+                          placeholder="Enter your phone number"
+                          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                        />
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => handleUpdateProfile('phoneNumber', phoneNumber)}
+                          disabled={isUpdating}
+                        >
+                          {isUpdating ? 'Updating...' : 'Update'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Account Creation Date */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-2">Account Information</h4>
+                      <div className="text-zinc-300 text-sm">
+                        <p>Account created: {user?.metadata?.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString() : 'N/A'}</p>
+                      </div>
+                    </div>
+
+                    {/* Delete Account */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-4">Delete Account</h4>
+                      <div className="space-y-4">
+                        <p className="text-zinc-300 text-sm">
+                          Once you delete your account, there is no going back. Please be certain.
+                        </p>
+                        <div className="flex gap-4">
+                          <Button
+                            className="bg-red-600 text-white hover:bg-red-700"
+                            onClick={handleDeleteAccount}
+                            disabled={isUpdating}
+                          >
+                            Delete Account
+                          </Button>
+                          <Button
+                            className="bg-zinc-700 text-white hover:bg-zinc-600"
+                            onClick={handleArchiveAccount}
+                            disabled={isUpdating}
+                          >
+                            Archive Account
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {settingsTab === 'security' && (
