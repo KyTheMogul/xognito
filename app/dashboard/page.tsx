@@ -125,22 +125,22 @@ async function fetchDeepSeekResponseStream(
     while (!done) {
       const { value, done: doneReading } = await reader.read();
       done = doneReading;
-        
+      
       if (value) {
         buffer += decoder.decode(value, { stream: true });
         let lines = buffer.split('\n');
         buffer = lines.pop() || '';
-          
+        
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || !trimmed.startsWith('data:')) continue;
-            
+          
           const data = trimmed.replace(/^data:/, '');
           if (data === '[DONE]') {
             console.log("[DeepSeek] Stream complete");
             return;
           }
-            
+          
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta?.content;
@@ -169,42 +169,42 @@ async function fetchDeepSeekResponseStream(
 // Helper to parse code blocks from AI response (triple backtick or indented)
 function renderAIMessage(text: string) {
   try {
-    // Regex to match code blocks: ```lang\ncode\n```
-    const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
-    let match = codeBlockRegex.exec(text);
-    if (match) {
-      // Only show the first code block and any text before it
-      const before = text.slice(0, match.index).trim();
-      const lang = match[1] || 'plaintext';
-      const code = match[2];
-      return <CodeBlock lang={lang} code={code} before={before} />;
-    }
-    // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
-    const lines = text.split(/\r?\n/);
-    let inCode = false;
-    let codeLines: string[] = [];
-    let beforeLines: string[] = [];
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (/^(    |\t)/.test(line)) {
-        if (!inCode) {
-          inCode = true;
-        }
-        codeLines.push(line.replace(/^(    |\t)/, ''));
+  // Regex to match code blocks: ```lang\ncode\n```
+  const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
+  let match = codeBlockRegex.exec(text);
+  if (match) {
+    // Only show the first code block and any text before it
+    const before = text.slice(0, match.index).trim();
+    const lang = match[1] || 'plaintext';
+    const code = match[2];
+    return <CodeBlock lang={lang} code={code} before={before} />;
+  }
+  // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
+  const lines = text.split(/\r?\n/);
+  let inCode = false;
+  let codeLines: string[] = [];
+  let beforeLines: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^(    |\t)/.test(line)) {
+      if (!inCode) {
+        inCode = true;
+      }
+      codeLines.push(line.replace(/^(    |\t)/, ''));
+    } else {
+      if (!inCode) {
+        beforeLines.push(line);
       } else {
-        if (!inCode) {
-          beforeLines.push(line);
-        } else {
-          // End of first code block
-          break;
-        }
+        // End of first code block
+        break;
       }
     }
-    if (codeLines.length > 0) {
-      return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
-    }
-    // If no code block found, just return the text
-    return <span>{text}</span>;
+  }
+  if (codeLines.length > 0) {
+    return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
+  }
+  // If no code block found, just return the text
+  return <span>{text}</span>;
   } catch (error) {
     console.error("Error rendering AI message:", error);
     return <span>{text}</span>;
@@ -1507,43 +1507,73 @@ When responding:
 
   // Function to handle the cropped image
   const handleCroppedImage = async () => {
-    if (!cropper || !auth.currentUser) return;
-
-    const croppedImage = cropper.getCroppedCanvas().toDataURL('image/jpeg');
-    const userId = auth.currentUser.uid;
-
-    console.log('Uploading profile photo for user:', userId);
+    if (!cropper || !auth.currentUser) {
+      console.error('Missing cropper instance or user');
+      return;
+    }
 
     try {
+      // Get the cropped canvas
+      const canvas = cropper.getCroppedCanvas({
+        width: 300,
+        height: 300,
+        fillColor: '#fff',
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high',
+      });
+
+      // Convert to base64
+      const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+      const userId = auth.currentUser.uid;
+
+      console.log('Starting profile photo upload for user:', userId);
+      console.log('Image data length:', base64Image.length);
+
+      // Send to API
       const response = await fetch('/api/upload-profile-photo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: croppedImage,
-          userId,
+          image: base64Image,
+          userId: userId,
         }),
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Upload failed:', errorData);
-        throw new Error(errorData.error || 'Failed to upload profile photo');
+        console.error('Upload failed:', data);
+        throw new Error(data.error || 'Failed to upload profile photo');
       }
 
-      const data = await response.json();
       console.log('Upload successful:', data);
+
+      if (!data.downloadURL) {
+        throw new Error('No download URL received from server');
+      }
 
       // Update the user's profile with the new photo URL
       await updateProfile(auth.currentUser, {
         photoURL: data.downloadURL,
       });
 
+      // Update the user document in Firestore
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        photoURL: data.downloadURL,
+        updatedAt: serverTimestamp(),
+      });
+
       setShowCropper(false);
       setImageToCrop(null);
-    } catch (error) {
-      console.error('Error uploading profile photo:', error);
+    } catch (error: any) {
+      console.error('Error uploading profile photo:', {
+        message: error.message,
+        stack: error.stack
+      });
+      alert(`Failed to upload profile photo: ${error.message}`);
     }
   };
 
@@ -1813,20 +1843,20 @@ When responding:
             alt="Xognito" 
             className="h-12 w-auto"
           />
-          <Button
-            variant="ghost"
-            size="icon"
+        <Button
+          variant="ghost"
+          size="icon"
             className="bg-transparent text-white rounded-full w-12 h-12 flex items-center justify-center"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
-          >
-            {/* Hamburger SVG */}
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu">
-              <line x1="4" x2="20" y1="12" y2="12" />
-              <line x1="4" x2="20" y1="6" y2="6" />
-              <line x1="4" x2="20" y1="18" y2="18" />
-            </svg>
-          </Button>
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+        >
+          {/* Hamburger SVG */}
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu">
+            <line x1="4" x2="20" y1="12" y2="12" />
+            <line x1="4" x2="20" y1="6" y2="6" />
+            <line x1="4" x2="20" y1="18" y2="18" />
+          </svg>
+        </Button>
         </div>
       )}
 
