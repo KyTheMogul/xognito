@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, Timestamp, collection, setDoc, writeBatch } from 'firebase/firestore';
 
 export interface RedeemCode {
   code: string;
@@ -80,27 +80,25 @@ export async function applyRedeemCode(userId: string, code: string): Promise<{ s
 export async function generateRedeemCodes(
   count: number,
   plan: 'pro' | 'pro_plus',
-  expiresInDays?: number
+  expiresInDays: number = 30
 ): Promise<string[]> {
   const codes: string[] = [];
-  const batch = db.batch();
+  const batch = writeBatch(db);
 
   for (let i = 0; i < count; i++) {
     const code = generateUniqueCode();
     codes.push(code);
-
-    const codeRef = doc(db, 'redeemCodes', code);
-    const codeData: RedeemCode = {
+    
+    const codeRef = doc(collection(db, 'redeemCodes'));
+    batch.set(codeRef, {
       code,
       plan,
       used: false,
-      createdAt: Timestamp.now(),
-      ...(expiresInDays && {
-        expiresAt: Timestamp.fromDate(new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000))
-      })
-    };
-
-    batch.set(codeRef, codeData);
+      usedBy: null,
+      usedAt: null,
+      expiresAt: Timestamp.fromDate(new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)),
+      createdAt: Timestamp.now()
+    });
   }
 
   await batch.commit();
