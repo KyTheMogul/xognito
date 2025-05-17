@@ -1438,11 +1438,28 @@ When responding:
     try {
       switch (field) {
         case 'displayName':
+          // Check if user has changed display name in the last 14 days
+          const userRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
+          const userData = userDoc.data();
+          
+          if (userData?.lastDisplayNameChange) {
+            const lastChange = userData.lastDisplayNameChange.toDate();
+            const daysSinceLastChange = (Date.now() - lastChange.getTime()) / (1000 * 60 * 60 * 24);
+            
+            if (daysSinceLastChange < 14) {
+              const daysRemaining = Math.ceil(14 - daysSinceLastChange);
+              setError(`You can only change your display name once every 14 days. Please try again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`);
+              setIsUpdating(false);
+              return;
+            }
+          }
+
           await updateProfile(user, { displayName: value });
           // Update display name in Firestore user document
-          const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, {
             displayName: value,
+            lastDisplayNameChange: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
           setSuccess('Display name updated successfully');
