@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     console.log('[DeepSeek API] Making request with API key:', apiKey.substring(0, 5) + '...');
     console.log('[DeepSeek API] Request payload:', JSON.stringify({
-      model: 'deepseek-chat-2.0',
+      model: 'deepseek-chat',
       messages,
       stream: true,
       temperature: 0.7,
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat-2.0',
+          model: 'deepseek-chat',
           messages,
           stream: true,
           temperature: 0.7,
