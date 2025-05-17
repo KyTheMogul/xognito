@@ -6,7 +6,7 @@ import { useAuth } from '../../lib/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useRouter } from 'next/navigation';
-import { sendRedeemCodesEmail } from '../../lib/email';
+import { sendRedeemCodesEmail } from '../../actions/email';
 
 export default function RedeemCodesAdmin() {
   const [count, setCount] = useState(2); // Set default to 2
