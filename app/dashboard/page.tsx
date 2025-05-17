@@ -1342,21 +1342,34 @@ When responding:
 
     // Listen for user groups
     const groupsRef = collection(db, 'users', user.uid, 'groups');
-    const unsubscribe = onSnapshot(groupsRef, (snapshot) => {
+    const unsubscribe = onSnapshot(groupsRef, async (snapshot) => {
       console.log("[Dashboard] Groups snapshot received:", snapshot.docs.length, "groups");
-      const groups = snapshot.docs.map(doc => {
-        const data = doc.data();
-        console.log("[Dashboard] Group data:", { id: doc.id, ...data });
-        return {
-          id: doc.id,
-          name: data.name || 'Unnamed Group',
-          code: data.code || '',
-          hostXloudID: data.hostXloudID || '',
-          description: data.description || ''
-        };
-      });
-      console.log("[Dashboard] Processed groups:", groups);
-      setUserGroups(groups);
+      
+      // Get all group IDs from user's groups collection
+      const groupIds = snapshot.docs.map(doc => doc.id);
+      
+      // Fetch full group details from the groups collection
+      const groupsData = await Promise.all(
+        groupIds.map(async (groupId) => {
+          const groupDoc = await getDoc(doc(db, 'groups', groupId));
+          if (groupDoc.exists()) {
+            const data = groupDoc.data();
+            return {
+              id: groupId,
+              name: data.name || 'Unnamed Group',
+              code: data.code || '',
+              hostXloudID: data.hostXloudID || '',
+              description: data.description || ''
+            };
+          }
+          return null;
+        })
+      );
+
+      // Filter out any null values and update state
+      const validGroups = groupsData.filter((group): group is NonNullable<typeof group> => group !== null);
+      console.log("[Dashboard] Processed groups:", validGroups);
+      setUserGroups(validGroups);
     }, (error) => {
       console.error("[Dashboard] Error in groups listener:", error);
     });
@@ -1365,7 +1378,7 @@ When responding:
       console.log("[Dashboard] Cleaning up groups listener");
       unsubscribe();
     };
-  }, []);
+  }, [auth.currentUser]);
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -1395,95 +1408,97 @@ When responding:
       )}
 
       {/* Profile picture and add family button in top right */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
-        {userSubscription?.plan === 'free' ? (
-          <Button
-            onClick={() => setSubscriptionOpen(true)}
-            className="bg-transparent text-white hover:bg-white/10 font-semibold rounded-full px-4 py-2 text-sm border border-zinc-400/50"
-          >
-            Upgrade Plan
-          </Button>
-        ) : (
-          <>
-            {/* Linked users avatars */}
-            {linkedUsers.length > 0 && (
-              <div className="flex -space-x-2">
-                {linkedUsers.map((user) => (
-                  <div key={user.uid} className="relative group">
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName}
-                      className="w-10 h-10 rounded-full border-2 border-white object-cover"
-                    />
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      {user.displayName}
+      {!activeGroupId && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
+          {userSubscription?.plan === 'free' ? (
+            <Button
+              onClick={() => setSubscriptionOpen(true)}
+              className="bg-transparent text-white hover:bg-white/10 font-semibold rounded-full px-4 py-2 text-sm border border-zinc-400/50"
+            >
+              Upgrade Plan
+            </Button>
+          ) : (
+            <>
+              {/* Linked users avatars */}
+              {linkedUsers.length > 0 && (
+                <div className="flex -space-x-2">
+                  {linkedUsers.map((user) => (
+                    <div key={user.uid} className="relative group">
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName}
+                        className="w-10 h-10 rounded-full border-2 border-white object-cover"
+                      />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                        {user.displayName}
+                      </div>
                     </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add family member button - only for pro users */}
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
+                  onMouseEnter={() => setShowTooltip(true)}
+                  onMouseLeave={() => setShowTooltip(false)}
+                  onClick={() => setShowInviteModal(true)}
+                  aria-label="Add family member"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </Button>
+                {showTooltip && (
+                  <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
+                    Add family member
                   </div>
-                ))}
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Profile picture and menu - always visible */}
+          <div className="relative">
+            <button
+              onClick={() => setProfileMenuOpen((v) => !v)}
+              className="focus:outline-none"
+            >
+              <img
+                src={USER_PROFILE}
+                alt="Profile"
+                className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer hover:opacity-90 transition-opacity"
+              />
+            </button>
+            {profileMenuOpen && (
+              <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
+                <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
+                <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
+                    {userSubscription?.plan === 'free' ? 'Free Plan' : 'Pro Plan'}
+                </div>
+                <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
+                  Manage Subscription
+                </Button>
+                <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                  Settings
+                </Button>
+                  <Button 
+                    className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" 
+                    variant="ghost"
+                    onClick={() => signOut(auth)}
+                  >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                  Logout
+                </Button>
               </div>
             )}
-
-            {/* Add family member button - only for pro users */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-10 h-10 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 flex items-center justify-center transition-colors"
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
-                onClick={() => setShowInviteModal(true)}
-            aria-label="Add family member"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </Button>
-          {showTooltip && (
-            <div className="absolute right-0 top-12 bg-zinc-900 text-white text-xs rounded-md px-3 py-1 shadow-lg border border-zinc-700 whitespace-nowrap animate-fade-in">
-              Add family member
-            </div>
-          )}
-        </div>
-          </>
-        )}
-
-        {/* Profile picture and menu - always visible */}
-        <div className="relative">
-        <button
-          onClick={() => setProfileMenuOpen((v) => !v)}
-          className="focus:outline-none"
-        >
-          <img
-            src={USER_PROFILE}
-            alt="Profile"
-              className="w-12 h-12 rounded-full border-2 border-white object-cover shadow cursor-pointer hover:opacity-90 transition-opacity"
-          />
-        </button>
-        {profileMenuOpen && (
-          <div className="absolute right-0 top-full mt-3 w-60 bg-black border border-zinc-700 rounded-xl shadow-2xl py-3 px-2 flex flex-col gap-1 animate-fade-in z-50" style={{ minWidth: '15rem', background: 'rgba(20,20,20,0.98)', border: '1.5px solid #333' }}>
-            <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
-            <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
-                {userSubscription?.plan === 'free' ? 'Free Plan' : 'Pro Plan'}
-            </div>
-            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
-              Manage Subscription
-            </Button>
-            <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSettingsOpen(true)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4 8c0-.38-.15-.73-.33-1.02l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6c.38 0 .73.15 1.02.33.29.18.63.27.98.27s.69-.09.98-.27A1.65 1.65 0 0 0 12 3.09V3a2 2 0 0 1 4 0v.09c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 19.4 8c0 .38.15.73.33 1.02.18.29.27.63.27.98s-.09.69-.27.98A1.65 1.65 0 0 0 21 12.91V13a2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-              Settings
-            </Button>
-              <Button 
-                className="w-full justify-start bg-transparent text-red-500 hover:bg-red-600 hover:text-white hover:fill-white rounded-lg px-3 py-2 text-sm font-normal flex items-center gap-2 transition-colors" 
-                variant="ghost"
-                onClick={() => signOut(auth)}
-              >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-              Logout
-            </Button>
           </div>
-        )}
         </div>
-      </div>
+      )}
       {/* Sidebar */}
       <div
         className={`fixed top-4 left-0 h-[calc(100%-2rem)] w-64 bg-black border border-white rounded-2xl shadow-lg z-40 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-80'}`}
@@ -2319,32 +2334,6 @@ When responding:
         </div>
       )}
 
-      {/* Add group buttons to sidebar under Groups header */}
-      <div className="flex flex-col gap-2 px-4 pb-4">
-        {userGroups.map(group => (
-          <Button
-            key={group.id}
-            variant="ghost"
-            className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full ${
-              activeGroupId === group.id 
-                ? 'bg-white text-black' 
-                : 'text-zinc-200 hover:text-white hover:bg-white/10'
-            }`}
-            onClick={() => setActiveGroupId(group.id)}
-          >
-            <div className="flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-              <span className="truncate">{group.name}</span>
-            </div>
-          </Button>
-        ))}
-      </div>
-
       {/* Group Chat UI */}
       {activeGroupId && (
         <div className="fixed inset-0 z-40 flex flex-col bg-black">
@@ -2366,7 +2355,7 @@ When responding:
           </div>
 
           {/* Group Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col-reverse">
             {groupMessages.map((msg) => (
               <div
                 key={msg.id}
@@ -2400,7 +2389,9 @@ When responding:
                   ) : msg.isAI ? (
                     renderAIMessage(msg.text)
                   ) : (
-                    msg.text
+                    <span dangerouslySetInnerHTML={{
+                      __html: msg.text.replace(/@xognito/g, '<strong>@xognito</strong>')
+                    }} />
                   )}
                 </div>
                 {msg.senderId === auth.currentUser?.uid && (
