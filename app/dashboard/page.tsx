@@ -161,47 +161,59 @@ async function fetchDeepSeekResponseStream(
 }
 
 // Helper to parse code blocks from AI response (triple backtick or indented)
-function renderAIMessage(text: string) {
-  try {
-  // Regex to match code blocks: ```lang\ncode\n```
-  const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
-  let match = codeBlockRegex.exec(text);
-  if (match) {
-    // Only show the first code block and any text before it
-    const before = text.slice(0, match.index).trim();
-    const lang = match[1] || 'plaintext';
-    const code = match[2];
-    return <CodeBlock lang={lang} code={code} before={before} />;
+function renderAIMessage(text: string, files?: UploadedFile[]) {
+  if (files && files.length > 0) {
+    return (
+      <div className="space-y-4">
+        <span>{text}</span>
+        {files.map(file => (
+          file.type === 'image' ? (
+            <ImageMessage key={file.id} url={file.url} alt={file.name} />
+          ) : null
+        ))}
+      </div>
+    );
   }
-  // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
-  const lines = text.split(/\r?\n/);
-  let inCode = false;
-  let codeLines: string[] = [];
-  let beforeLines: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^(    |\t)/.test(line)) {
-      if (!inCode) {
-        inCode = true;
-      }
-      codeLines.push(line.replace(/^(    |\t)/, ''));
-    } else {
-      if (!inCode) {
-        beforeLines.push(line);
+
+  // Original code block handling
+  try {
+    const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
+    let match = codeBlockRegex.exec(text);
+    if (match) {
+      const before = text.slice(0, match.index).trim();
+      const lang = match[1] || 'plaintext';
+      const code = match[2];
+      return <CodeBlock lang={lang} code={code} before={before} />;
+    }
+    // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
+    const lines = text.split(/\r?\n/);
+    let inCode = false;
+    let codeLines: string[] = [];
+    let beforeLines: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^(    |\t)/.test(line)) {
+        if (!inCode) {
+          inCode = true;
+        }
+        codeLines.push(line.replace(/^(    |\t)/, ''));
       } else {
-        // End of first code block
-        break;
+        if (!inCode) {
+          beforeLines.push(line);
+        } else {
+          // End of first code block
+          break;
+        }
       }
     }
-  }
-  if (codeLines.length > 0) {
-    return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
-  }
-  // If no code block found, just return the text
-  return <span>{text}</span>;
+    if (codeLines.length > 0) {
+      return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
+    }
+    // If no code block found, just return the text
+    return <span>{text}</span>;
   } catch (error) {
     console.error("Error rendering AI message:", error);
-  return <span>{text}</span>;
+    return <span>{text}</span>;
   }
 }
 
@@ -291,6 +303,56 @@ type LinkedUser = {
 function getFirstName(displayName: string | null): string {
   if (!displayName) return 'User';
   return displayName.split(' ')[0];
+}
+
+// Add this new component after the CodeBlock component
+function ImageLoadingPlaceholder() {
+  return (
+    <div className="relative w-64 h-64 rounded-lg overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 to-zinc-900 animate-pulse" />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-zinc-600 border-t-white rounded-full animate-spin" />
+      </div>
+    </div>
+  );
+}
+
+function ImageMessage({ url, alt }: { url: string; alt: string }) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [blurAmount, setBlurAmount] = useState(20);
+
+  useEffect(() => {
+    if (isLoading) {
+      const interval = setInterval(() => {
+        setBlurAmount(prev => {
+          if (prev <= 0) {
+            clearInterval(interval);
+            setIsLoading(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 50);
+      return () => clearInterval(interval);
+    }
+  }, [isLoading]);
+
+  return (
+    <div className="relative w-64 h-64 rounded-lg overflow-hidden">
+      <img
+        src={url}
+        alt={alt}
+        className={`w-full h-full object-cover transition-all duration-300 ${isLoading ? 'scale-110' : 'scale-100'}`}
+        style={{ filter: `blur(${blurAmount}px)` }}
+        onLoad={() => setIsLoading(false)}
+      />
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-zinc-600 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Force new deployment - May 15, 2024
@@ -493,105 +555,195 @@ export default function Dashboard() {
   // Handle sending a message
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[Dashboard] Attempting to send message:", { input, activeConversationId });
-    
-    if (!input.trim()) {
-      console.log("[Dashboard] Cannot send message: No input text");
-      return;
-    }
+    if (!input.trim() && uploads.length === 0) return;
 
-    const user = auth.currentUser;
-    if (!user) {
-      console.log("[Dashboard] No authenticated user found");
-      return;
-    }
+    // Check if this is an image generation request
+    const isImageRequest = input.toLowerCase().includes('generate image') || 
+                          input.toLowerCase().includes('create image') ||
+                          input.toLowerCase().includes('make an image') ||
+                          input.toLowerCase().includes('draw') ||
+                          input.toLowerCase().includes('generate a logo');
 
-    // Check message limit for free plan
-    const hasPro = await hasProPlan(user.uid);
-    if (!hasPro) {
-      const messageCheck = await canSendMessage(user.uid);
-      if (!messageCheck.allowed) {
-        setShowDailyLimitError(true);
-        setTimeout(() => setShowDailyLimitError(false), 5000);
-        return;
-      }
-    }
-
-    // If no active conversation, create one
-    if (!activeConversationId) {
-      console.log("[Dashboard] No active conversation, creating new one");
+    if (isImageRequest) {
       try {
-        const newConversationId = await createConversation(user.uid);
-        console.log("[Dashboard] Created new conversation:", newConversationId);
-        setActiveConversationId(newConversationId);
+        // Add user message
+        const userMessage: MessageWithId = { 
+          id: Date.now().toString(),
+          sender: 'user', 
+          text: input,
+          timestamp: Timestamp.now()
+        };
+        setMessages(prev => [...prev, userMessage]);
+
+        // Add AI thinking message with loading placeholder
+        const thinkingMessage: MessageWithId = { 
+          id: (Date.now() + 1).toString(),
+          sender: 'ai', 
+          text: 'Generating your image...',
+          files: [{
+            id: 'loading',
+            url: '',
+            type: 'image',
+            name: 'loading',
+            file: new File([], 'loading')
+          }],
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, thinkingMessage]);
+
+        // Call Stability AI API
+        const response = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt: input }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate image');
+        }
+
+        const result = await response.json();
+        
+        // Remove thinking message
+        setMessages(prev => prev.filter(msg => msg.id !== thinkingMessage.id));
+
+        // Add AI response with the generated image
+        const aiMessage: MessageWithId = {
+          id: Date.now().toString(),
+          sender: 'ai',
+          text: `Here's the generated image based on your request: "${input}"`,
+          files: [{
+            id: Date.now().toString(),
+            url: `data:image/png;base64,${result.artifacts[0].base64}`,
+            type: 'image',
+            name: 'generated-image.png',
+            file: new File([], 'generated-image.png')
+          }],
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMessage]);
+
+        // Save to Firestore
+        if (activeConversationId) {
+          await addMessage(activeConversationId, userMessage);
+          await addMessage(activeConversationId, aiMessage);
+        }
       } catch (error) {
-        console.error("[Dashboard] Failed to create new conversation:", error);
+        console.error('Error generating image:', error);
+        // Remove thinking message
+        setMessages(prev => prev.filter(msg => msg.id !== thinkingMessage.id));
+        // Add error message
+        const errorMessage: MessageWithId = {
+          id: Date.now().toString(),
+          sender: 'ai',
+          text: 'Sorry, I encountered an error while generating the image. Please try again.',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+    } else {
+      // Original message handling logic for non-image requests
+      console.log("[Dashboard] Attempting to send message:", { input, activeConversationId });
+      
+      if (!input.trim()) {
+        console.log("[Dashboard] Cannot send message: No input text");
         return;
       }
-    }
 
-    console.log("[Dashboard] User authenticated:", { uid: user.uid });
+      const user = auth.currentUser;
+      if (!user) {
+        console.log("[Dashboard] No authenticated user found");
+        return;
+      }
 
-    const userMessage: Omit<Message, 'timestamp'> = {
-      sender: 'user',
-      text: input,
-    };
-
-    try {
-      console.log("[Dashboard] Adding user message to Firestore");
-      // Add user message
-      const userMessageId = await addMessage(user.uid, activeConversationId!, userMessage);
-      console.log("[Dashboard] User message added successfully");
-      
-      setInput('');
-      setUploads([]);
-
-      // Evaluate if message should be stored as memory
-      const memoryId = await evaluateMemoryOpportunity(user.uid, input, activeConversationId!, userMessageId);
-      if (memoryId) {
-        console.log("[Dashboard] Created new memory:", memoryId);
-        // Get the memory details from Firestore
-        const memoryRef = doc(db, `users/${user.uid}/memory`, memoryId);
-        const memoryDoc = await getDoc(memoryRef);
-        if (memoryDoc.exists()) {
-          const memoryData = memoryDoc.data();
-          handleNewMemory({
-            id: memoryId,
-            summary: memoryData.summary,
-            type: memoryData.type || 'short'
-          });
+      // Check message limit for free plan
+      const hasPro = await hasProPlan(user.uid);
+      if (!hasPro) {
+        const messageCheck = await canSendMessage(user.uid);
+        if (!messageCheck.allowed) {
+          setShowDailyLimitError(true);
+          setTimeout(() => setShowDailyLimitError(false), 5000);
+          return;
         }
       }
 
-      // Get relevant memories for context
-      const relevantMemories = await getRelevantMemories(user.uid, input);
-      console.log("[Dashboard] Retrieved relevant memories:", relevantMemories);
-      const memoryContext = generateMemoryContext(relevantMemories);
-      console.log("[Dashboard] Generated memory context:", memoryContext);
-
-      // If this is the first message, generate a title
-      if (messages.length === 0) {
-        console.log("[Dashboard] First message, updating conversation title");
-        const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
-        await updateConversationTitle(user.uid, activeConversationId!, title);
-        console.log("[Dashboard] Conversation title updated");
+      // If no active conversation, create one
+      if (!activeConversationId) {
+        console.log("[Dashboard] No active conversation, creating new one");
+        try {
+          const newConversationId = await createConversation(user.uid);
+          console.log("[Dashboard] Created new conversation:", newConversationId);
+          setActiveConversationId(newConversationId);
+        } catch (error) {
+          console.error("[Dashboard] Failed to create new conversation:", error);
+          return;
+        }
       }
 
-      // Add AI response placeholder
-      console.log("[Dashboard] Adding AI response placeholder");
-      const aiMessage: Omit<Message, 'timestamp'> = {
-        sender: 'ai',
-        text: '...',
-        thinking: true
-      };
-      const aiMessageId = await addMessage(user.uid, activeConversationId!, aiMessage);
-      console.log("[Dashboard] AI response placeholder added");
+      console.log("[Dashboard] User authenticated:", { uid: user.uid });
 
-      // Call DeepSeek API and stream the response
-      const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-        { 
-          role: 'system', 
-          content: `You are Xognito — a personal AI assistant designed to think independently and respond efficiently.
+      const userMessage: Omit<Message, 'timestamp'> = {
+        sender: 'user',
+        text: input,
+      };
+
+      try {
+        console.log("[Dashboard] Adding user message to Firestore");
+        // Add user message
+        const userMessageId = await addMessage(user.uid, activeConversationId!, userMessage);
+        console.log("[Dashboard] User message added successfully");
+        
+        setInput('');
+        setUploads([]);
+
+        // Evaluate if message should be stored as memory
+        const memoryId = await evaluateMemoryOpportunity(user.uid, input, activeConversationId!, userMessageId);
+        if (memoryId) {
+          console.log("[Dashboard] Created new memory:", memoryId);
+          // Get the memory details from Firestore
+          const memoryRef = doc(db, `users/${user.uid}/memory`, memoryId);
+          const memoryDoc = await getDoc(memoryRef);
+          if (memoryDoc.exists()) {
+            const memoryData = memoryDoc.data();
+            handleNewMemory({
+              id: memoryId,
+              summary: memoryData.summary,
+              type: memoryData.type || 'short'
+            });
+          }
+        }
+
+        // Get relevant memories for context
+        const relevantMemories = await getRelevantMemories(user.uid, input);
+        console.log("[Dashboard] Retrieved relevant memories:", relevantMemories);
+        const memoryContext = generateMemoryContext(relevantMemories);
+        console.log("[Dashboard] Generated memory context:", memoryContext);
+
+        // If this is the first message, generate a title
+        if (messages.length === 0) {
+          console.log("[Dashboard] First message, updating conversation title");
+          const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
+          await updateConversationTitle(user.uid, activeConversationId!, title);
+          console.log("[Dashboard] Conversation title updated");
+        }
+
+        // Add AI response placeholder
+        console.log("[Dashboard] Adding AI response placeholder");
+        const aiMessage: Omit<Message, 'timestamp'> = {
+          sender: 'ai',
+          text: '...',
+          thinking: true
+        };
+        const aiMessageId = await addMessage(user.uid, activeConversationId!, aiMessage);
+        console.log("[Dashboard] AI response placeholder added");
+
+        // Call DeepSeek API and stream the response
+        const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
+          { 
+            role: 'system', 
+            content: `You are Xognito — a personal AI assistant designed to think independently and respond efficiently.
 Your personality is calm, focused, and sharply intelligent — like JARVIS from Iron Man.
 
 Core principles:
@@ -614,79 +766,80 @@ When responding:
 5. When someone shares something with you, acknowledge it naturally
 6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
 7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate`
-        },
-        { role: 'user', content: input }
-      ];
+          },
+          { role: 'user', content: input }
+        ];
 
-      console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
-      let aiResponse = '';
-      try {
-        await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-          console.log("[Dashboard] Received chunk:", chunk);
-          aiResponse += chunk;
-          // Update the AI message in Firestore with the current response
-          const updatedAiMessage: Omit<Message, 'timestamp'> = {
+        console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
+        let aiResponse = '';
+        try {
+          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+            console.log("[Dashboard] Received chunk:", chunk);
+            aiResponse += chunk;
+            // Update the AI message in Firestore with the current response
+            const updatedAiMessage: Omit<Message, 'timestamp'> = {
+              sender: 'ai',
+              text: aiResponse,
+              thinking: false
+            };
+            updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage)
+              .catch(error => {
+                console.error("[Dashboard] Error updating AI message:", error);
+              });
+          });
+          console.log("[Dashboard] Stream complete, final response:", aiResponse);
+
+          // If a memory was created, add a confirmation message
+          if (memoryId) {
+            const confirmationMessage: Omit<Message, 'timestamp'> = {
+              sender: 'ai',
+              text: "I'll make sure to remember that for our future conversations.",
+              thinking: false
+            };
+            await addMessage(user.uid, activeConversationId!, confirmationMessage);
+          }
+
+        } catch (error) {
+          console.error("[Dashboard] Error in DeepSeek API call:", error);
+          // Update with error message
+          const errorMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
-            text: aiResponse,
+            text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
             thinking: false
           };
-          updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage)
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage)
             .catch(error => {
-              console.error("[Dashboard] Error updating AI message:", error);
+              console.error("[Dashboard] Error updating error message:", error);
             });
-        });
-        console.log("[Dashboard] Stream complete, final response:", aiResponse);
+        }
 
-        // If a memory was created, add a confirmation message
-        if (memoryId) {
-          const confirmationMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "I'll make sure to remember that for our future conversations.",
-            thinking: false
-          };
-          await addMessage(user.uid, activeConversationId!, confirmationMessage);
+        // Update lastTriggered for any memories that were referenced
+        for (const memory of relevantMemories) {
+          if (aiResponse.toLowerCase().includes(memory.summary.toLowerCase())) {
+            await updateMemoryLastTriggered(user.uid, memory.id);
+            // Show notification for triggered memory
+            handleNewMemory({
+              id: memory.id,
+              summary: memory.summary,
+              type: memory.type || 'short'
+            });
+          }
+        }
+
+        // After successful message send, increment counter for free plan
+        if (userSubscription?.plan === 'free') {
+          await incrementMessageCount(user.uid);
+          const messageCheck = await canSendMessage(user.uid);
+          setUsageStats(prev => ({
+            ...prev,
+            messagesToday: prev.messagesToday + 1,
+            remaining: messageCheck.remaining
+          }));
         }
 
       } catch (error) {
-        console.error("[Dashboard] Error in DeepSeek API call:", error);
-        // Update with error message
-        const errorMessage: Omit<Message, 'timestamp'> = {
-          sender: 'ai',
-          text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
-          thinking: false
-        };
-        await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage)
-          .catch(error => {
-            console.error("[Dashboard] Error updating error message:", error);
-          });
+        console.error("[Dashboard] Error sending message:", error);
       }
-
-      // Update lastTriggered for any memories that were referenced
-      for (const memory of relevantMemories) {
-        if (aiResponse.toLowerCase().includes(memory.summary.toLowerCase())) {
-          await updateMemoryLastTriggered(user.uid, memory.id);
-          // Show notification for triggered memory
-          handleNewMemory({
-            id: memory.id,
-            summary: memory.summary,
-            type: memory.type || 'short'
-          });
-        }
-      }
-
-      // After successful message send, increment counter for free plan
-      if (userSubscription?.plan === 'free') {
-        await incrementMessageCount(user.uid);
-        const messageCheck = await canSendMessage(user.uid);
-        setUsageStats(prev => ({
-          ...prev,
-          messagesToday: prev.messagesToday + 1,
-          remaining: messageCheck.remaining
-        }));
-      }
-
-    } catch (error) {
-      console.error("[Dashboard] Error sending message:", error);
     }
   };
 
@@ -1997,13 +2150,13 @@ When responding:
                         <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
                         <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
                       </span>
-                    ) : msg.sender === 'ai' ? renderAIMessage(msg.text) : msg.text}
+                    ) : msg.sender === 'ai' ? renderAIMessage(msg.text, msg.files) : msg.text}
                     {/* If user message has files, show them below the bubble */}
                     {msg.sender === 'user' && Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
                       <div className="flex flex-col gap-2 mt-3">
                         {(msg as any).files.map((f: UploadedFile) => (
                           f.type === 'image' ? (
-                            <img key={f.id} src={f.url} alt={f.name} className="rounded-xl max-w-xs max-h-48 border border-zinc-700" />
+                            <ImageMessage key={f.id} url={f.url} alt={f.name} />
                           ) : (
                             <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
                               {f.name}
@@ -2190,8 +2343,8 @@ When responding:
                     {error && (
                       <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg">
                         {error}
-                      </div>
-                    )}
+                  </div>
+                )}
                     
                     {success && (
                       <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-2 rounded-lg">
@@ -2298,7 +2451,7 @@ When responding:
                     {/* Change Password */}
                     <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                       <div className="flex items-center justify-between">
-                        <div>
+                  <div>
                           <h4 className="text-white font-semibold mb-1">Change Password</h4>
                           <p className="text-zinc-400 text-sm">Update your account password</p>
                         </div>
@@ -2435,7 +2588,7 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Current Plan</h4>
                         <div className="flex items-center justify-between">
-                          <div>
+                  <div>
                             <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
                             {userSubscription?.isInvitedUser && (
                               <div className="mt-2 space-y-1">
@@ -2577,7 +2730,7 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Personality</h4>
                         <p className="text-zinc-300 text-sm">Xognito is designed to be calm, focused, and sharply intelligent — like JARVIS from Iron Man.</p>
-                      </div>
+              </div>
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Core Principles</h4>
                         <ul className="text-zinc-300 text-sm space-y-2">
@@ -2587,10 +2740,10 @@ When responding:
                           <li>• Think proactively about what matters</li>
                           <li>• Adapt naturally to your needs</li>
                         </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
+            </div>
+          </div>
+        </div>
+      )}
 
                 {settingsTab === 'memory' && (
                   <div className="space-y-6 pl-6 pr-4">
@@ -3206,7 +3359,7 @@ When responding:
                       <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
                     </span>
                   ) : msg.isAI ? (
-                    renderAIMessage(msg.text)
+                    renderAIMessage(msg.text, msg.files)
                   ) : (
                     <span dangerouslySetInnerHTML={{
                       __html: msg.text.replace(/@xognito/g, '<strong>@xognito</strong>')
