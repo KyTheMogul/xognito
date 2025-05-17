@@ -2032,46 +2032,10 @@ When responding:
                     </div>
 
                     {/* Email */}
-                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                      <h4 className="text-white font-semibold mb-4">Email Address</h4>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="email"
-                          placeholder="Enter your email"
-                          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                        />
-                        <Button
-                          className="bg-white text-black hover:bg-zinc-100"
-                          onClick={() => handleUpdateProfile('email', email)}
-                          disabled={isUpdating}
-                        >
-                          {isUpdating ? 'Updating...' : 'Update'}
-                        </Button>
-                      </div>
-                    </div>
+                    {/* Removed email address input field */}
 
                     {/* Phone Number */}
-                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                      <h4 className="text-white font-semibold mb-4">Phone Number (Optional)</h4>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="tel"
-                          placeholder="Enter your phone number"
-                          className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                        />
-                        <Button
-                          className="bg-white text-black hover:bg-zinc-100"
-                          onClick={() => handleUpdateProfile('phoneNumber', phoneNumber)}
-                          disabled={isUpdating}
-                        >
-                          {isUpdating ? 'Updating...' : 'Update'}
-                        </Button>
-                      </div>
-                    </div>
+                    {/* Removed phone number input field */}
 
                     {/* Account Creation Date */}
                     <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
