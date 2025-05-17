@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage } from '@/lib/firebase-admin';
 
+// Add CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'https://www.xognito.com',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
@@ -16,7 +28,7 @@ export async function POST(req: NextRequest) {
       console.error('Missing required fields:', { hasImage: !!image, hasUserId: !!userId });
       return NextResponse.json(
         { error: 'Missing image or userId' }, 
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -25,37 +37,51 @@ export async function POST(req: NextRequest) {
       console.error('Invalid image format:', image.substring(0, 50) + '...');
       return NextResponse.json(
         { error: 'Invalid image format. Must be a base64 data URL.' }, 
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
-    // Create a reference to the storage location
+    // Get the storage bucket
     const bucket = storage.bucket();
-    const file = bucket.file(`profile-photos/${userId}/${Date.now()}.jpg`);
+    if (!bucket) {
+      throw new Error('Storage bucket is not initialized');
+    }
+
+    // Create a unique filename
+    const filename = `profile-photos/${userId}/${Date.now()}.jpg`;
+    const file = bucket.file(filename);
     
     try {
-      // Upload the base64 image to Firebase Storage
-      console.log('Attempting to upload image...');
-      const buffer = Buffer.from(image.split(',')[1], 'base64');
+      // Convert base64 to buffer
+      const base64Data = image.split(',')[1];
+      const buffer = Buffer.from(base64Data, 'base64');
       
+      // Upload the file
+      console.log('Uploading image to:', filename);
       await file.save(buffer, {
         metadata: {
           contentType: 'image/jpeg',
+          metadata: {
+            userId: userId,
+            uploadedAt: new Date().toISOString()
+          }
         },
         resumable: false
       });
       
       console.log('Image uploaded successfully');
 
-      // Get the download URL
-      console.log('Getting download URL...');
-      const [url] = await file.getSignedUrl({
-        action: 'read',
-        expires: '03-01-2500', // Far future expiration
-      });
+      // Make the file publicly accessible
+      await file.makePublic();
       
-      console.log('Got download URL:', url);
-      return NextResponse.json({ downloadURL: url });
+      // Get the public URL
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+      console.log('Generated public URL:', publicUrl);
+
+      return NextResponse.json({ 
+        downloadURL: publicUrl,
+        filename: filename
+      }, { headers: corsHeaders });
       
     } catch (uploadError: any) {
       console.error('Error during upload:', {
@@ -65,7 +91,7 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json(
         { error: `Failed to upload image to storage: ${uploadError.message}` }, 
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
   } catch (error: any) {
@@ -76,7 +102,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(
       { error: `Internal server error: ${error.message}` }, 
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 } 
