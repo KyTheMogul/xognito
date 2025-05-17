@@ -2186,7 +2186,7 @@ When responding:
               {/* Tab Content */}
               <div className="flex-1 rounded-xl p-6 bg-transparent overflow-y-auto custom-scrollbar">
                 {settingsTab === 'account' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     {error && (
                       <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg">
                         {error}
@@ -2292,7 +2292,7 @@ When responding:
                 )}
 
                 {settingsTab === 'security' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-4">Security Settings</h3>
                     
                     {/* Change Password */}
@@ -2428,7 +2428,7 @@ When responding:
                 )}
 
                 {settingsTab === 'billing' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">Billing & Subscription</h3>
                     <div className="space-y-4">
                       {/* Current Plan */}
@@ -2521,7 +2521,7 @@ When responding:
                 )}
 
                 {settingsTab === 'appearance' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">Appearance Settings</h3>
                     <div className="text-zinc-300 mb-4">Customize the look and feel of your dashboard.</div>
                     
@@ -2570,7 +2570,7 @@ When responding:
                 )}
 
                 {settingsTab === 'ai' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">AI Customization</h3>
                     <div className="text-zinc-300 mb-4">Customize how Xognito interacts with you.</div>
                     <div className="space-y-4">
@@ -2593,7 +2593,7 @@ When responding:
                 )}
 
                 {settingsTab === 'memory' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">Memory Settings</h3>
                     <div className="text-zinc-300 mb-4">Control what the assistant knows or remembers.</div>
                     
@@ -2710,7 +2710,7 @@ When responding:
                 )}
 
                 {settingsTab === 'notifications' && (
-                  <div className="space-y-6 px-4">
+                  <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">Notification Settings</h3>
                     <div className="text-zinc-300 mb-4">Manage how and when you receive notifications.</div>
                     
