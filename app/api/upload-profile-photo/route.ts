@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { storage } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,21 +31,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Create a reference to the storage location
-    const storageRef = ref(storage, `profile-photos/${userId}/${Date.now()}.jpg`);
-    console.log('Created storage reference:', storageRef.fullPath);
+    const storageRef = storage.bucket().file(`profile-photos/${userId}/${Date.now()}.jpg`);
+    console.log('Created storage reference:', storageRef.name);
 
     try {
       // Upload the base64 image to Firebase Storage
       console.log('Attempting to upload image...');
-      await uploadString(storageRef, image, 'data_url');
+      const buffer = Buffer.from(image.split(',')[1], 'base64');
+      await storageRef.save(buffer, {
+        metadata: {
+          contentType: 'image/jpeg',
+        },
+      });
       console.log('Image uploaded successfully');
 
       // Get the download URL
       console.log('Getting download URL...');
-      const downloadURL = await getDownloadURL(storageRef);
-      console.log('Got download URL:', downloadURL);
+      const [url] = await storageRef.getSignedUrl({
+        action: 'read',
+        expires: '03-01-2500', // Far future expiration
+      });
+      console.log('Got download URL:', url);
 
-      return NextResponse.json({ downloadURL });
+      return NextResponse.json({ downloadURL: url });
     } catch (uploadError: any) {
       console.error('Error during upload:', {
         code: uploadError.code,
