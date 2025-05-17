@@ -1,28 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { generateRedeemCodes } from '../../lib/redeemCode';
 import { useAuth } from '../../lib/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { useRouter } from 'next/navigation';
+import { sendRedeemCodesEmail } from '../../lib/email';
 
 export default function RedeemCodesAdmin() {
-  const [count, setCount] = useState(1);
+  const [count, setCount] = useState(2); // Set default to 2
   const [plan, setPlan] = useState<'pro' | 'pro_plus'>('pro');
   const [expiresInDays, setExpiresInDays] = useState<number>(30);
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists() && userDoc.data().isAdmin) {
+          setIsAdmin(true);
+        } else {
+          router.push('/dashboard');
+        }
+      }
+    };
+    checkAdmin();
+  }, [user, router]);
 
   const handleGenerateCodes = async () => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     setIsLoading(true);
     try {
       const codes = await generateRedeemCodes(count, plan, expiresInDays);
       setGeneratedCodes(codes);
+      
+      if (email) {
+        await sendRedeemCodesEmail(email, codes, plan);
+        setEmailSent(true);
+      }
     } catch (error) {
       console.error('Error generating codes:', error);
     }
     setIsLoading(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
@@ -72,6 +111,19 @@ export default function RedeemCodesAdmin() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email Address (Optional)
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email to receive codes"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
             <button
               onClick={handleGenerateCodes}
               disabled={isLoading}
@@ -79,6 +131,12 @@ export default function RedeemCodesAdmin() {
             >
               {isLoading ? 'Generating...' : 'Generate Codes'}
             </button>
+
+            {emailSent && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
+                Codes have been sent to {email}
+              </div>
+            )}
 
             {generatedCodes.length > 0 && (
               <div className="mt-6">
