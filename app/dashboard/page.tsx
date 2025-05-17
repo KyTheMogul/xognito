@@ -579,16 +579,6 @@ export default function Dashboard() {
         console.log("[Dashboard] Conversation title updated");
       }
 
-      // Add AI response placeholder
-      console.log("[Dashboard] Adding AI response placeholder");
-      const aiMessage: Omit<Message, 'timestamp'> = {
-        sender: 'ai',
-        text: '...',
-        thinking: true
-      };
-      const aiMessageId = await addMessage(user.uid, activeConversationId!, aiMessage);
-      console.log("[Dashboard] AI response placeholder added");
-
       // Check if this is an image generation request
       const isImageRequest = input.toLowerCase().includes('generate image') || 
                             input.toLowerCase().includes('create image') ||
@@ -596,10 +586,19 @@ export default function Dashboard() {
                             input.toLowerCase().includes('draw') ||
                             input.toLowerCase().includes('generate a logo');
 
-      let aiResponse = ''; // Move variable declaration here
+      let aiMessageId = '';
+      let aiResponse = '';
 
       if (isImageRequest) {
         try {
+          // Add initial AI message with thinking state
+          const initialAiMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: "I'm generating your image...",
+            thinking: true
+          };
+          aiMessageId = await addMessage(user.uid, activeConversationId!, initialAiMessage);
+
           // Call Stability AI API
           const response = await fetch('/api/generate-image', {
             method: 'POST',
@@ -618,7 +617,7 @@ export default function Dashboard() {
           // Update AI message with the generated image
           const updatedAiMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
-            text: `Here's the image I generated based on your request: "${input}"`,
+            text: `I've generated an image based on your request.`,
             files: [{
               id: Date.now().toString(),
               url: `data:image/png;base64,${result.artifacts[0].base64}`,
@@ -640,6 +639,14 @@ export default function Dashboard() {
           await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage);
         }
       } else {
+        // Add initial AI message
+        const initialAiMessage: Omit<Message, 'timestamp'> = {
+          sender: 'ai',
+          text: '...',
+          thinking: true
+        };
+        aiMessageId = await addMessage(user.uid, activeConversationId!, initialAiMessage);
+
         // Call DeepSeek API and stream the response
         const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
           { 
@@ -657,17 +664,22 @@ You have the following capabilities:
 Guidelines:
 1. Be concise but thorough
 2. Use markdown formatting when appropriate
-3. If asked to generate an image, use the image generation capability
+3. For image generation:
+   - When users ask for images, respond with a simple acknowledgment
+   - DO NOT try to generate images yourself or provide image URLs
+   - Let the system handle the actual image generation
+   - After the image is generated, you can provide feedback or suggestions
 4. Remember important details from the conversation
 5. If you're not sure about something, say so
 6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
-7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate`
+7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate
+
+${memoryContext}`
           },
           { role: 'user', content: input }
         ];
 
         console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
-        aiResponse = '';
         try {
           await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
             console.log("[Dashboard] Received chunk:", chunk);
