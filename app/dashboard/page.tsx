@@ -1343,21 +1343,26 @@ When responding:
     // Listen for user groups
     const groupsRef = collection(db, 'users', user.uid, 'groups');
     const unsubscribe = onSnapshot(groupsRef, (snapshot) => {
-      const groups = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Array<{
-        id: string;
-        name: string;
-        code: string;
-        hostXloudID: string;
-        description?: string;
-      }>;
+      console.log("[Dashboard] Groups snapshot received:", snapshot.docs.length, "groups");
+      const groups = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log("[Dashboard] Group data:", { id: doc.id, ...data });
+        return {
+          id: doc.id,
+          name: data.name || 'Unnamed Group',
+          code: data.code || '',
+          hostXloudID: data.hostXloudID || '',
+          description: data.description || ''
+        };
+      });
+      console.log("[Dashboard] Processed groups:", groups);
       setUserGroups(groups);
+    }, (error) => {
+      console.error("[Dashboard] Error in groups listener:", error);
     });
 
-    // Cleanup function
     return () => {
+      console.log("[Dashboard] Cleaning up groups listener");
       unsubscribe();
     };
   }, []);
@@ -1657,11 +1662,13 @@ When responding:
               messages.slice().reverse().map((msg, idx) => (
                 <div key={idx} className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} mt-4`}>
               {msg.sender === 'ai' && (
-                <img 
-                  src={AI_PROFILE} 
-                  alt="AI" 
-                  className="w-10 h-10 rounded-full mr-2 border border-white object-cover object-center scale-110" 
-                />
+                <div className="w-10 h-10 rounded-full mr-2 border border-white overflow-hidden">
+                  <img 
+                    src={AI_PROFILE} 
+                    alt="AI" 
+                    className="w-full h-full object-cover object-center scale-125" 
+                  />
+                </div>
               )}
               <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${msg.sender === 'user' ? 'bg-white text-black ml-2' : 'bg-transparent text-white mr-2'}`}>
                   <>
@@ -2363,28 +2370,26 @@ When responding:
             {groupMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex items-end gap-2 ${
-                  msg.senderId === auth.currentUser?.uid ? 'justify-end' : 'justify-start'
-                }`}
+                className={`flex items-end ${msg.senderId === auth.currentUser?.uid ? 'justify-end' : 'justify-start'} mt-4`}
               >
                 {msg.senderId !== auth.currentUser?.uid && (
-                  <img
-                    src={msg.senderPhoto}
-                    alt={msg.senderName}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
+                  <div className="w-10 h-10 rounded-full mr-2 border border-white overflow-hidden">
+                    <img
+                      src={msg.isAI ? AI_PROFILE : msg.senderPhoto}
+                      alt={msg.senderName}
+                      className="w-full h-full object-cover object-center scale-125"
+                    />
+                  </div>
                 )}
-                <div
-                  className={`rounded-2xl px-4 py-2 max-w-[70%] ${
-                    msg.senderId === auth.currentUser?.uid
-                      ? 'bg-blue-600 text-white'
-                      : msg.isAI
-                      ? 'bg-zinc-800 text-white'
-                      : 'bg-zinc-700 text-white'
-                  }`}
-                >
-                  {msg.senderId !== auth.currentUser?.uid && (
-                    <div className="text-xs text-zinc-300 mb-1">{msg.senderName}</div>
+                <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${
+                  msg.senderId === auth.currentUser?.uid 
+                    ? 'bg-white text-black ml-2' 
+                    : msg.isAI 
+                      ? 'bg-transparent text-white mr-2'
+                      : 'bg-transparent text-white mr-2'
+                }`}>
+                  {msg.senderId !== auth.currentUser?.uid && !msg.isAI && (
+                    <div className="text-xs text-zinc-400 mb-1">{msg.senderName}</div>
                   )}
                   {msg.thinking ? (
                     <span className="inline-block w-8">
@@ -2392,15 +2397,17 @@ When responding:
                       <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
                       <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
                     </span>
+                  ) : msg.isAI ? (
+                    renderAIMessage(msg.text)
                   ) : (
                     msg.text
                   )}
                 </div>
                 {msg.senderId === auth.currentUser?.uid && (
                   <img
-                    src={msg.senderPhoto}
-                    alt={msg.senderName}
-                    className="w-8 h-8 rounded-full object-cover"
+                    src={USER_PROFILE}
+                    alt="You"
+                    className="w-10 h-10 rounded-full ml-2 border border-white object-cover"
                   />
                 )}
               </div>
@@ -2412,20 +2419,22 @@ When responding:
             onSubmit={handleSendGroupMessage}
             className="p-4 border-t border-zinc-800"
           >
-            <div className="flex items-center gap-2 bg-zinc-900 rounded-full px-4 py-2">
+            <div className="flex items-center w-full max-w-2xl mx-auto bg-black border border-white rounded-full px-4 py-2 gap-2 shadow-lg">
               <input
                 type="text"
                 value={groupInput}
                 onChange={(e) => setGroupInput(e.target.value)}
                 placeholder="Type a message... (use @xognito to get AI response)"
-                className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400"
+                className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400 text-base px-2"
               />
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
-              >
-                Send
-              </button>
+              {groupInput.trim() && (
+                <button
+                  type="submit"
+                  className="bg-white text-black font-semibold rounded-full px-5 py-2 text-sm shadow hover:bg-zinc-100 transition-colors"
+                >
+                  Send
+                </button>
+              )}
             </div>
           </form>
         </div>
