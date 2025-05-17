@@ -1932,7 +1932,7 @@ When responding:
       {/* Settings Modal */}
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-zinc-900/80 rounded-2xl shadow-2xl p-8 w-full max-w-2xl relative border-2 border-white/80 backdrop-blur-lg" style={{ boxShadow: '0 8px 40px 0 rgba(0,0,0,0.7)', height: '80vh' }}>
+          <div className="bg-zinc-900/80 rounded-2xl shadow-2xl p-8 w-full max-w-3xl relative border-2 border-white/80 backdrop-blur-lg" style={{ boxShadow: '0 8px 40px 0 rgba(0,0,0,0.7)', height: '80vh' }}>
             <button className="absolute top-3 right-3 text-zinc-400 hover:text-white text-2xl" onClick={() => setSettingsOpen(false)}>&times;</button>
             <h2 className="text-xl font-bold mb-6 text-white text-center">Settings</h2>
             <div className="flex gap-8 h-[calc(100%-3rem)]">
