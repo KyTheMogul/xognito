@@ -99,7 +99,7 @@ async function fetchDeepSeekResponseStream(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      },
+    },
       body: JSON.stringify({ messages }),
     });
     if (!res.ok) {
@@ -145,8 +145,8 @@ async function fetchDeepSeekResponseStream(
           } catch (e) {
             console.error("[DeepSeek] Error parsing chunk:", e, "Raw data:", data);
           }
-        }
       }
+    }
     }
   } catch (error) {
     console.error("[DeepSeek] Error in API call:", {
@@ -2122,7 +2122,7 @@ When responding:
       {/* Settings Modal */}
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-zinc-900/80 rounded-2xl shadow-2xl p-8 w-full max-w-3xl relative border-2 border-white/80 backdrop-blur-lg" style={{ boxShadow: '0 8px 40px 0 rgba(0,0,0,0.7)', height: '80vh' }}>
+          <div className="bg-zinc-900/80 rounded-2xl shadow-2xl p-8 w-full max-w-4xl relative border-2 border-white/80 backdrop-blur-lg" style={{ boxShadow: '0 8px 40px 0 rgba(0,0,0,0.7)', height: '80vh' }}>
             <button className="absolute top-3 right-3 text-zinc-400 hover:text-white text-2xl" onClick={() => setSettingsOpen(false)}>&times;</button>
             <h2 className="text-xl font-bold mb-6 text-white text-center">Settings</h2>
             <div className="flex gap-8 h-[calc(100%-3rem)]">
@@ -2276,7 +2276,7 @@ When responding:
                     {/* Change Password */}
                     <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                       <div className="flex items-center justify-between">
-                        <div>
+                  <div>
                           <h4 className="text-white font-semibold mb-1">Change Password</h4>
                           <p className="text-zinc-400 text-sm">Update your account password</p>
                         </div>
@@ -2413,7 +2413,7 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Current Plan</h4>
                         <div className="flex items-center justify-between">
-                  <div>
+                          <div>
                             <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
                             {userSubscription?.isInvitedUser && (
                               <div className="mt-2 space-y-1">
@@ -2434,78 +2434,65 @@ When responding:
                               </p>
                             )}
                           </div>
-                          {!userSubscription?.isInvitedUser && (
-                            <Button 
-                              className="bg-white text-black hover:bg-zinc-100"
-                              onClick={() => setSubscriptionOpen(true)}
-                            >
-                              Change Plan
-                            </Button>
-                          )}
+                          <Button
+                            className="bg-white text-black hover:bg-zinc-100"
+                            onClick={() => setSubscriptionOpen(true)}
+                          >
+                            Change Plan
+                          </Button>
                         </div>
                       </div>
 
-                      {/* Payment Method */}
+                      {/* Payment Methods */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                        <h4 className="text-white font-semibold mb-2">Payment Method</h4>
-                        {userSubscription?.isInvitedUser ? (
-                          <p className="text-zinc-400 text-sm">
-                            Billing is managed by your inviter ({userSubscription.inviterEmail})
-                          </p>
-                        ) : userSubscription?.stripeCustomerId ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <h4 className="text-white font-semibold mb-3">Payment Methods</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                            <div className="flex items-center gap-3">
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
                                 <rect x="1" y="4" width="22" height="16" rx="2" />
                                 <line x1="1" y1="10" x2="23" y2="10" />
                               </svg>
-                              <span className="text-zinc-300 text-sm">•••• 4242</span>
+                              <div>
+                                <p className="text-white text-sm">•••• •••• •••• 4242</p>
+                                <p className="text-zinc-400 text-xs">Expires 12/24</p>
+                              </div>
                             </div>
-                            <Button 
-                              variant="ghost" 
-                              className="text-zinc-400 hover:text-white"
-                              onClick={() => {/* TODO: Implement update payment method */}}
-                            >
-                              Update
-                            </Button>
+                            <button className="text-zinc-400 hover:text-white">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
                           </div>
-                        ) : (
-                          <p className="text-zinc-400 text-sm">No payment method on file</p>
-                        )}
+                          <Button className="w-full bg-transparent border border-zinc-700 text-white hover:bg-zinc-800">
+                            + Add Payment Method
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Billing History */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                        <h4 className="text-white font-semibold mb-2">Billing History</h4>
+                        <h4 className="text-white font-semibold mb-3">Billing History</h4>
                         <div className="space-y-2">
-                          {userSubscription?.isInvitedUser ? (
-                            <p className="text-zinc-400 text-sm">
-                              Billing history is managed by your inviter
-                            </p>
-                          ) : userSubscription?.plan !== 'free' ? (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-zinc-300">Last payment</span>
-                              <span className="text-zinc-400">$12.00</span>
+                          <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                            <div>
+                              <p className="text-white text-sm">Pro Plan - Monthly</p>
+                              <p className="text-zinc-400 text-xs">March 15, 2024</p>
                             </div>
-                          ) : (
-                            <p className="text-zinc-400 text-sm">No billing history available</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Usage Stats */}
-                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                        <h4 className="text-white font-semibold mb-2">Usage This Month</h4>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-zinc-300">Messages</span>
-                            <span className="text-zinc-400">{usageStats.messagesToday}/25</span>
+                            <div className="text-white">$19.99</div>
                           </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-zinc-300">File Uploads</span>
-                            <span className="text-zinc-400">{usageStats.filesUploaded}/3</span>
+                          <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                            <div>
+                              <p className="text-white text-sm">Pro Plan - Monthly</p>
+                              <p className="text-zinc-400 text-xs">February 15, 2024</p>
+                            </div>
+                            <div className="text-white">$19.99</div>
                           </div>
                         </div>
+                        <Button className="w-full mt-3 bg-transparent border border-zinc-700 text-white hover:bg-zinc-800">
+                          View All Invoices
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -2513,7 +2500,49 @@ When responding:
                 {settingsTab === 'appearance' && (
                   <div className="space-y-6">
                     <h3 className="text-lg font-bold text-white mb-2">Appearance Settings</h3>
-                    <div className="text-zinc-300">Customize the look and feel of your dashboard.</div>
+                    <div className="text-zinc-300 mb-4">Customize the look and feel of your dashboard.</div>
+                    
+                    {/* Theme Settings */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-3">Theme</h4>
+                      <div className="grid grid-cols-3 gap-4">
+                        <button className="p-4 rounded-lg border border-zinc-700 bg-black hover:border-white/50 transition-colors">
+                          <div className="w-full h-24 bg-gradient-to-br from-zinc-900 to-black rounded mb-2"></div>
+                          <div className="text-sm text-white">Dark</div>
+                        </button>
+                        <button className="p-4 rounded-lg border border-zinc-700 bg-white hover:border-black/50 transition-colors">
+                          <div className="w-full h-24 bg-gradient-to-br from-zinc-100 to-white rounded mb-2"></div>
+                          <div className="text-sm text-black">Light</div>
+                        </button>
+                        <button className="p-4 rounded-lg border border-zinc-700 bg-black hover:border-white/50 transition-colors">
+                          <div className="w-full h-24 bg-gradient-to-br from-blue-900 to-black rounded mb-2"></div>
+                          <div className="text-sm text-white">Blue</div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Font Settings */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <h4 className="text-white font-semibold mb-3">Font Style</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm text-zinc-300 mb-2">Font Family</label>
+                          <select className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white">
+                            <option value="geist-sans">Geist Sans</option>
+                            <option value="inter">Inter</option>
+                            <option value="system">System Default</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-zinc-300 mb-2">Font Size</label>
+                          <div className="flex items-center gap-4">
+                            <button className="px-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-white hover:bg-zinc-800">A-</button>
+                            <div className="text-white">Medium</div>
+                            <button className="px-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-white hover:bg-zinc-800">A+</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {settingsTab === 'ai' && (
