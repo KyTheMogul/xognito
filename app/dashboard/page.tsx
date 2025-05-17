@@ -90,35 +90,37 @@ async function fetchDeepSeekResponseStream(
 ): Promise<void> {
   try {
     console.log("[DeepSeek] Starting API call with messages:", messages);
-  const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
     if (!apiKey) {
-      console.error("[DeepSeek] No API key found");
-      throw new Error('DeepSeek API key not set');
+      console.error("[DeepSeek] No API key found in environment variables");
+      throw new Error('DeepSeek API key not set in environment variables');
     }
 
+    console.log("[DeepSeek] Attempting to connect to API endpoint");
     const res = await fetch('https://api.deepseek.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
         model: 'deepseek-chat-1.5',
-      messages,
-      stream: true,
+        messages,
+        stream: true,
         temperature: 0.7,
         max_tokens: 1000
-    }),
-  });
+      }),
+    });
 
     if (!res.ok) {
       const errorText = await res.text();
       console.error("[DeepSeek] API error:", {
         status: res.status,
         statusText: res.statusText,
-        error: errorText
+        error: errorText,
+        headers: Object.fromEntries(res.headers.entries())
       });
-      throw new Error(`DeepSeek API error: ${res.status} ${res.statusText}`);
+      throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorText}`);
     }
 
     if (!res.body) {
@@ -126,49 +128,53 @@ async function fetchDeepSeekResponseStream(
       throw new Error('No response body from DeepSeek API');
     }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-  let done = false;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let done = false;
 
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-      
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      let lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
         
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+        let lines = buffer.split('\n');
+        buffer = lines.pop() || '';
           
-        const data = trimmed.replace(/^data:/, '');
-          if (data === '[DONE]') {
-            console.log("[DeepSeek] Stream complete");
-            return;
-          }
-          
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              console.log("[DeepSeek] Received chunk:", delta);
-              onChunk(delta);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+            
+          const data = trimmed.replace(/^data:/, '');
+            if (data === '[DONE]') {
+              console.log("[DeepSeek] Stream complete");
+              return;
             }
-          } catch (e) {
-            console.error("[DeepSeek] Error parsing chunk:", e, "Raw data:", data);
+            
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                console.log("[DeepSeek] Received chunk:", delta);
+                onChunk(delta);
+              }
+            } catch (e) {
+              console.error("[DeepSeek] Error parsing chunk:", e, "Raw data:", data);
+            }
           }
         }
       }
+    } catch (error) {
+      console.error("[DeepSeek] Error in API call:", {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      // Send a more informative fallback response
+      onChunk("I apologize, but I'm having trouble connecting to my language model. Please check your internet connection and API configuration. Error: " + (error instanceof Error ? error.message : 'Unknown error'));
+      throw error;
     }
-  } catch (error) {
-    console.error("[DeepSeek] Error in API call:", error);
-    // Send a fallback response
-    onChunk("I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.");
-    throw error;
-  }
 }
 
 // Helper to parse code blocks from AI response (triple backtick or indented)
@@ -376,10 +382,38 @@ export default function Dashboard() {
     thinking?: boolean;
   }>>([]);
   const [groupInput, setGroupInput] = useState('');
+  const [filteredChats, setFilteredChats] = useState<ConversationWithId[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<Array<{
+    id: string;
+    name: string;
+    code: string;
+    hostXloudID: string;
+    description?: string;
+  }>>([]);
 
-  const filteredChats = search
-    ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
-    : conversations;
+  // Update search filtering
+  useEffect(() => {
+    if (!search.trim()) {
+      setFilteredChats(conversations);
+      setFilteredGroups(userGroups);
+      return;
+    }
+
+    const searchLower = search.toLowerCase();
+    
+    // Filter conversations
+    const filteredConversations = conversations.filter(chat => 
+      chat.title.toLowerCase().includes(searchLower)
+    );
+    setFilteredChats(filteredConversations);
+
+    // Filter groups
+    const filteredGroupsList = userGroups.filter(group => 
+      group.name.toLowerCase().includes(searchLower) ||
+      (group.description && group.description.toLowerCase().includes(searchLower))
+    );
+    setFilteredGroups(filteredGroupsList);
+  }, [search, conversations, userGroups]);
 
   const examplePrompts = [
     "What do you remember about my work schedule?",
@@ -406,14 +440,15 @@ export default function Dashboard() {
 
     const unsubscribe = listenToConversations(user.uid, (convos) => {
       setConversations(convos);
-      // If no active conversation, set the first one
-      if (!activeConversationId && convos.length > 0) {
+      // Remove automatic setting of first conversation
+      // Only set active conversation if none is selected and user hasn't explicitly chosen one
+      if (!activeConversationId && convos.length > 0 && !sidebarOpen) {
         setActiveConversationId(convos[0].id);
       }
     });
 
     return () => unsubscribe();
-  }, [auth.currentUser]);
+  }, [auth.currentUser, activeConversationId, sidebarOpen]);
 
   // Real-time messages
   useEffect(() => {
@@ -1546,10 +1581,12 @@ When responding:
 
         {/* Group conversations list */}
         <div className="flex flex-col gap-2 px-4 pb-4">
-          {userGroups.length === 0 ? (
-            <span className="text-zinc-500 text-xs px-2 py-1">No groups yet. Create or join one!</span>
+          {filteredGroups.length === 0 ? (
+            <span className="text-zinc-500 text-xs px-2 py-1">
+              {search ? 'No groups found matching your search.' : 'No groups yet. Create or join one!'}
+            </span>
           ) : (
-            userGroups.map(group => (
+            filteredGroups.map(group => (
               <Button
                 key={group.id}
                 variant="ghost"
@@ -1579,7 +1616,9 @@ When responding:
         {/* Chat history list */}
         <div className="flex flex-col gap-2 px-4 pb-4">
           {filteredChats.length === 0 ? (
-            <span className="text-zinc-500 text-xs px-2 py-1">No chats found.</span>
+            <span className="text-zinc-500 text-xs px-2 py-1">
+              {search ? 'No chats found matching your search.' : 'No chats found.'}
+            </span>
           ) : (
             filteredChats.map(chat => (
               <div
@@ -1590,13 +1629,15 @@ When responding:
               >
                 <Button
                   variant={activeConversationId === chat.id ? 'default' : 'ghost'}
-                  className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'}`}
+                  className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${
+                    activeConversationId === chat.id ? 'bg-white text-black active-conv-btn' : 'text-zinc-200 hover:text-white hover:bg-white/10'
+                  }`}
                   onClick={() => setActiveConversationId(chat.id)}
-              >
+                >
                   <div className="truncate overflow-hidden whitespace-nowrap group-hover:animate-slide-text">
                     {chat.title}
                   </div>
-              </Button>
+                </Button>
                 {/* Trash can icon on hover */}
                 {hoveredChatId === chat.id && (
                   <button
