@@ -2114,7 +2114,7 @@ When responding:
               <div className={`rounded-2xl border ${userSubscription?.plan === 'pro_plus' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
                 <div className="font-bold text-xl mb-1 tracking-wide">Pro Plus</div>
                 <div className="text-lg mb-1 font-semibold">$25/month</div>
-                <div className="text-xs text-zinc-300 mb-3 italic">Everything you need and more.</div>
+                <div className="text-xs text-zinc-300 mb-3 italic">Coming Soon</div>
                 <ul className="text-sm text-zinc-300 mb-6 space-y-2 text-left w-full max-w-[210px]">
                   <li>Everything in Pro, plus:</li>
                   <li>Full offline access</li>
@@ -2126,11 +2126,10 @@ When responding:
                   <li>Additional users: +30%/user</li>
                 </ul>
                 <button 
-                  className={`${userSubscription?.plan === 'pro_plus' ? 'bg-green-500 cursor-not-allowed' : 'bg-white hover:bg-zinc-100'} text-black font-semibold px-4 py-2 rounded-lg transition-colors`}
-                  disabled={userSubscription?.plan === 'pro_plus'}
-                  onClick={() => handlePlanChange('pro_plus')}
+                  className="bg-zinc-700 text-zinc-400 font-semibold px-4 py-2 rounded-lg cursor-not-allowed"
+                  disabled={true}
                 >
-                  {userSubscription?.plan === 'pro_plus' ? 'Current Plan' : 'Change Plan'}
+                  Coming Soon
                 </button>
               </div>
             </div>
