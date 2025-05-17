@@ -61,7 +61,7 @@ import MemoryNotification from '@/components/MemoryNotification';
 import InviteUserModal from '@/components/InviteUserModal';
 import InvitationNotification from '@/components/InvitationNotification';
 import { Suspense } from 'react';
-import GroupRequestNotification from '@/components/GroupRequestNotification';
+import GroupRequestNotification from '../components/GroupRequestNotification';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
