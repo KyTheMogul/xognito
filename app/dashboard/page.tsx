@@ -1660,6 +1660,33 @@ When responding:
     }
   };
 
+  const handleUpgrade = async (plan: string) => {
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: plan === 'pro' ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID : process.env.NEXT_PUBLIC_STRIPE_PRO_PLUS_PRICE_ID,
+          plan: plan
+        }),
+      });
+
+      const { sessionId, error } = await response.json();
+
+      if (error) {
+        throw new Error(error);
+      }
+
+      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+      await stripe?.redirectToCheckout({ sessionId });
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      setError('Failed to create checkout session. Please try again.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       {/* Daily limit error message */}
