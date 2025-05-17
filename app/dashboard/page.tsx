@@ -1524,6 +1524,36 @@ When responding:
           </button>
         </div>
 
+        {/* Group conversations list */}
+        <div className="flex flex-col gap-2 px-4 pb-4">
+          {userGroups.length === 0 ? (
+            <span className="text-zinc-500 text-xs px-2 py-1">No groups yet. Create or join one!</span>
+          ) : (
+            userGroups.map(group => (
+              <Button
+                key={group.id}
+                variant="ghost"
+                className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full ${
+                  activeGroupId === group.id 
+                    ? 'bg-white text-black' 
+                    : 'text-zinc-200 hover:text-white hover:bg-white/10'
+                }`}
+                onClick={() => setActiveGroupId(group.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  <span className="truncate">{group.name}</span>
+                </div>
+              </Button>
+            ))
+          )}
+        </div>
+
         {/* History header */}
         <div className="text-zinc-300 font-bold px-6 py-3 text-sm tracking-wide">History</div>
         {/* Chat history list */}
@@ -1627,7 +1657,11 @@ When responding:
               messages.slice().reverse().map((msg, idx) => (
                 <div key={idx} className={`flex items-end ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} mt-4`}>
               {msg.sender === 'ai' && (
-                <img src={AI_PROFILE} alt="AI" className="w-10 h-10 rounded-full mr-2 border border-white object-cover" />
+                <img 
+                  src={AI_PROFILE} 
+                  alt="AI" 
+                  className="w-10 h-10 rounded-full mr-2 border border-white object-cover object-center scale-110" 
+                />
               )}
               <div className={`rounded-2xl px-4 py-2 max-w-[70%] text-sm shadow ${msg.sender === 'user' ? 'bg-white text-black ml-2' : 'bg-transparent text-white mr-2'}`}>
                   <>
