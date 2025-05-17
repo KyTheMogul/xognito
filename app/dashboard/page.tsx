@@ -62,6 +62,8 @@ import InviteUserModal from '@/components/InviteUserModal';
 import InvitationNotification from '@/components/InvitationNotification';
 import { Suspense } from 'react';
 import GroupRequestNotification from '../components/GroupRequestNotification';
+import Cropper from 'react-cropper';
+import 'cropperjs/dist/cropper.css';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -389,6 +391,11 @@ export default function Dashboard() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Add state for cropper
+  const [cropper, setCropper] = useState<Cropper | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
 
   // Update search filtering
   useEffect(() => {
@@ -1489,16 +1496,29 @@ When responding:
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageToCrop(reader.result as string);
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Function to handle the cropped image
+  const handleCroppedImage = async () => {
+    if (!cropper) return;
+
+    const croppedImage = cropper.getCroppedCanvas().toDataURL();
     const user = auth.currentUser;
     if (!user) return;
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
       const response = await fetch('/api/upload-profile-photo', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image: croppedImage }),
       });
 
       if (!response.ok) {
@@ -1511,6 +1531,9 @@ When responding:
       setSuccess('Profile photo updated successfully');
     } catch (error: any) {
       setError(error.message);
+    } finally {
+      setShowCropper(false);
+      setImageToCrop(null);
     }
   };
 
@@ -2687,6 +2710,27 @@ When responding:
 
       {/* Add GroupRequestNotification component */}
       <GroupRequestNotification />
+
+      {/* Cropper Modal */}
+      {showCropper && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="bg-zinc-900 rounded-lg p-4 w-full max-w-md">
+            <h3 className="text-white font-semibold mb-4">Crop Your Image</h3>
+            <Cropper
+              src={imageToCrop || ''}
+              style={{ height: 300, width: '100%' }}
+              aspectRatio={1}
+              guides={true}
+              onInitialized={(instance: Cropper) => setCropper(instance)}
+            />
+            <div className="flex justify-end mt-4">
+              <Button onClick={handleCroppedImage} className="bg-white text-black hover:bg-zinc-100">
+                Crop & Upload
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
