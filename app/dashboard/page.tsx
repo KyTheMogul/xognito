@@ -309,7 +309,7 @@ export default function Dashboard() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'account' | 'security' | 'appearance' | 'ai' | 'billing'>('account');
+  const [settingsTab, setSettingsTab] = useState<'account' | 'security' | 'appearance' | 'ai' | 'billing' | 'memory' | 'notifications'>('account');
   const [uploads, setUploads] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [proFeaturesExpanded, setProFeaturesExpanded] = useState(false);
@@ -2153,6 +2153,16 @@ When responding:
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-5 0v-15A2.5 2.5 0 0 1 9.5 2Z" /><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 5 0v-15A2.5 2.5 0 0 0 14.5 2Z" /></svg>
                   AI Customization
                 </span>
+                <span onClick={() => setSettingsTab('memory')} className={`cursor-pointer text-base font-semibold py-2 px-3 rounded-lg transition-colors text-left flex items-center gap-2 ${settingsTab === 'memory' ? 'text-white bg-white/20' : 'text-zinc-300 hover:bg-white/10 hover:text-white/80'}`}>
+                  {/* Memory icon */}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" /><path d="M12 6v4l3 3" /></svg>
+                  Memory
+                </span>
+                <span onClick={() => setSettingsTab('notifications')} className={`cursor-pointer text-base font-semibold py-2 px-3 rounded-lg transition-colors text-left flex items-center gap-2 ${settingsTab === 'notifications' ? 'text-white bg-white/20' : 'text-zinc-300 hover:bg-white/10 hover:text-white/80'}`}>
+                  {/* Bell icon */}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline align-middle"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                  Notifications
+                </span>
               </div>
               {/* Tab Content */}
               <div className="flex-1 rounded-xl p-6 bg-transparent overflow-y-auto custom-scrollbar">
@@ -2563,6 +2573,200 @@ When responding:
                           <li>• Think proactively about what matters</li>
                           <li>• Adapt naturally to your needs</li>
                         </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {settingsTab === 'memory' && (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-white mb-2">Memory Settings</h3>
+                    <div className="text-zinc-300 mb-4">Control what the assistant knows or remembers.</div>
+                    
+                    {/* View Saved Memories */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">View Saved Memories</h4>
+                          <p className="text-zinc-400 text-sm">Browse through your assistant's memory bank</p>
+                        </div>
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => {
+                            // TODO: Implement memory viewer
+                            alert('Memory viewer coming soon');
+                          }}
+                        >
+                          View Memories
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Delete Individual Memories */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Delete Individual Memories</h4>
+                          <p className="text-zinc-400 text-sm">Remove specific memories from your assistant's knowledge</p>
+                        </div>
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => {
+                            // TODO: Implement memory deletion
+                            alert('Memory deletion coming soon');
+                          }}
+                        >
+                          Manage Memories
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Pin Important Memories */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Pin Important Memories</h4>
+                          <p className="text-zinc-400 text-sm">Deep lock critical information for long-term retention</p>
+                        </div>
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => {
+                            // TODO: Implement memory pinning
+                            alert('Memory pinning coming soon');
+                          }}
+                        >
+                          Pin Memories
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Export Memory Log */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Export Memory Log</h4>
+                          <p className="text-zinc-400 text-sm">Download a complete record of your assistant's memories</p>
+                        </div>
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => {
+                            // TODO: Implement memory export
+                            alert('Memory export coming soon');
+                          }}
+                        >
+                          Export
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Turn Off New Memory Saving */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Turn Off New Memory Saving</h4>
+                          <p className="text-zinc-400 text-sm">Temporarily disable automatic memory creation</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="memorySaving"
+                            className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                          />
+                          <label htmlFor="memorySaving" className="text-zinc-300 text-sm">Enable Memory Saving</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Memory Visualization (Pro+ future) */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Memory Visualization</h4>
+                          <p className="text-zinc-400 text-sm">Visual representation of your memory network (Pro+ feature)</p>
+                        </div>
+                        <Button
+                          className="bg-zinc-700 text-zinc-400 cursor-not-allowed"
+                          disabled
+                        >
+                          Coming Soon
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {settingsTab === 'notifications' && (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-white mb-2">Notification Settings</h3>
+                    <div className="text-zinc-300 mb-4">Manage how and when you receive notifications.</div>
+                    
+                    {/* Email Reminders */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Email Reminders</h4>
+                          <p className="text-zinc-400 text-sm">Receive email notifications for important updates</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="emailReminders"
+                            className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                          />
+                          <label htmlFor="emailReminders" className="text-zinc-300 text-sm">Enable</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Weekly Digest */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Weekly Digest</h4>
+                          <p className="text-zinc-400 text-sm">Get a weekly summary of insights and goals</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="weeklyDigest"
+                            className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                          />
+                          <label htmlFor="weeklyDigest" className="text-zinc-300 text-sm">Enable</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Push Notifications */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Push Notifications</h4>
+                          <p className="text-zinc-400 text-sm">Receive real-time notifications on mobile/web app</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="pushNotifications"
+                            className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                          />
+                          <label htmlFor="pushNotifications" className="text-zinc-300 text-sm">Enable</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Group Request Notifications */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Group Request Notifications</h4>
+                          <p className="text-zinc-400 text-sm">Get notified when someone requests to join your group</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="groupNotifications"
+                            className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                          />
+                          <label htmlFor="groupNotifications" className="text-zinc-300 text-sm">Enable</label>
+                        </div>
                       </div>
                     </div>
                   </div>
