@@ -148,8 +148,8 @@ export default function LandingPage() {
       {/* Header */}
       <header className="w-full flex items-center justify-between px-8 py-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shadow-lg">
-            <Image src="/XognitoLogo.png" alt="Xognito Logo" width={32} height={32} className="object-contain w-8 h-8" />
+          <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center shadow-lg">
+            <Image src="/XognitoLogo.png" alt="Xognito Logo" width={48} height={48} className="object-contain w-12 h-12" />
           </div>
           <span className="text-lg font-bold tracking-tight">Xognito</span>
         </div>
