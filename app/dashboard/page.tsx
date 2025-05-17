@@ -96,65 +96,68 @@ async function fetchDeepSeekResponseStream(
       throw new Error('DeepSeek API key not set in environment variables');
     }
 
+    console.log("[DeepSeek] API Key present:", apiKey.substring(0, 5) + "...");
     console.log("[DeepSeek] Attempting to connect to API endpoint");
-    const res = await fetch('https://api.deepseek.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat-1.5',
-        messages,
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 1000
-      }),
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("[DeepSeek] API error:", {
-        status: res.status,
-        statusText: res.statusText,
-        error: errorText,
-        headers: Object.fromEntries(res.headers.entries())
+    
+    try {
+      const res = await fetch('https://api.deepseek.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat-2.0',
+          messages,
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 1000
+        }),
       });
-      throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorText}`);
-    }
 
-    if (!res.body) {
-      console.error("[DeepSeek] No response body");
-      throw new Error('No response body from DeepSeek API');
-    }
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[DeepSeek] API error:", {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorText,
+          headers: Object.fromEntries(res.headers.entries())
+        });
+        throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorText}`);
+      }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let done = false;
+      if (!res.body) {
+        console.error("[DeepSeek] No response body");
+        throw new Error('No response body from DeepSeek API');
+      }
 
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
-        
-      if (value) {
-        buffer += decoder.decode(value, { stream: true });
-        let lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let done = false;
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
           
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data:')) continue;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          let lines = buffer.split('\n');
+          buffer = lines.pop() || '';
             
-          const data = trimmed.replace(/^data:/, '');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data:')) continue;
+              
+            const data = trimmed.replace(/^data:/, '');
             if (data === '[DONE]') {
               console.log("[DeepSeek] Stream complete");
               return;
             }
-            
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
+              
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
               if (delta) {
                 console.log("[DeepSeek] Received chunk:", delta);
                 onChunk(delta);
@@ -165,16 +168,26 @@ async function fetchDeepSeekResponseStream(
           }
         }
       }
-    } catch (error) {
-      console.error("[DeepSeek] Error in API call:", {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
+    } catch (fetchError) {
+      console.error("[DeepSeek] Fetch error:", {
+        error: fetchError,
+        message: fetchError instanceof Error ? fetchError.message : 'Unknown error',
+        stack: fetchError instanceof Error ? fetchError.stack : undefined,
+        type: fetchError instanceof TypeError ? 'Network error' : 'API error'
       });
-      // Send a more informative fallback response
-      onChunk("I apologize, but I'm having trouble connecting to my language model. Please check your internet connection and API configuration. Error: " + (error instanceof Error ? error.message : 'Unknown error'));
-      throw error;
+      throw fetchError;
     }
+  } catch (error) {
+    console.error("[DeepSeek] Error in API call:", {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      hasApiKey: !!process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY
+    });
+    // Send a more informative fallback response
+    onChunk("I apologize, but I'm having trouble connecting to my language model. Please check your internet connection and API configuration. Error: " + (error instanceof Error ? error.message : 'Unknown error'));
+    throw error;
+  }
 }
 
 // Helper to parse code blocks from AI response (triple backtick or indented)
