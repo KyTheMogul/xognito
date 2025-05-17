@@ -93,15 +93,13 @@ async function fetchDeepSeekResponseStream(
 ): Promise<void> {
   try {
     console.log("[DeepSeek] Starting API call with messages:", messages);
-    
     const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ messages }),
     });
-
     if (!res.ok) {
       const errorText = await res.text();
       console.error("[DeepSeek] API error:", {
@@ -112,39 +110,32 @@ async function fetchDeepSeekResponseStream(
       });
       throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorText}`);
     }
-
     if (!res.body) {
       console.error("[DeepSeek] No response body");
       throw new Error('No response body from DeepSeek API');
     }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-  let done = false;
-
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-      
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      let lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-        
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-          
-        const data = trimmed.replace(/^data:/, '');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let done = false;
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+        let lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          const data = trimmed.replace(/^data:/, '');
           if (data === '[DONE]') {
             console.log("[DeepSeek] Stream complete");
             return;
           }
-          
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               console.log("[DeepSeek] Received chunk:", delta);
               onChunk(delta);
@@ -154,7 +145,8 @@ async function fetchDeepSeekResponseStream(
           }
         }
       }
-    } catch (error) {
+    }
+  } catch (error) {
     console.error("[DeepSeek] Error in API call:", {
       error,
       message: error instanceof Error ? error.message : 'Unknown error',
