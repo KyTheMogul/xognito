@@ -2423,7 +2423,7 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Current Plan</h4>
                         <div className="flex items-center justify-between">
-                          <div>
+                  <div>
                             <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
                             {userSubscription?.isInvitedUser && (
                               <div className="mt-2 space-y-1">
