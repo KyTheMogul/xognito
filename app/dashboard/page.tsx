@@ -2271,8 +2271,138 @@ When responding:
                 )}
                 {settingsTab === 'security' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-white mb-2">Security Settings</h3>
-                    <div className="text-zinc-300">Update your password and enable 2FA here.</div>
+                    <h3 className="text-lg font-bold text-white mb-4">Security Settings</h3>
+                    
+                    {/* Change Password */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Change Password</h4>
+                          <p className="text-zinc-400 text-sm">Update your account password</p>
+                        </div>
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => {
+                            // TODO: Implement password change modal
+                            alert('Password change feature coming soon');
+                          }}
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* 2FA */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Two-Factor Authentication</h4>
+                          <p className="text-zinc-400 text-sm">Add an extra layer of security to your account</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-400 text-sm">Coming Soon</span>
+                          <Button
+                            className="bg-zinc-700 text-zinc-400 cursor-not-allowed"
+                            disabled
+                          >
+                            Enable
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Device/Session History */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Device & Session History</h4>
+                          <p className="text-zinc-400 text-sm">View and manage your active sessions</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-400 text-sm">Coming Soon</span>
+                          <Button
+                            className="bg-zinc-700 text-zinc-400 cursor-not-allowed"
+                            disabled
+                          >
+                            View
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sign Out All Sessions */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Sign Out All Sessions</h4>
+                          <p className="text-zinc-400 text-sm">Sign out from all devices and browsers</p>
+                        </div>
+                        <Button
+                          className="bg-red-600 text-white hover:bg-red-700"
+                          onClick={async () => {
+                            if (window.confirm('Are you sure you want to sign out from all sessions?')) {
+                              try {
+                                // TODO: Implement sign out all sessions
+                                await signOut(auth);
+                                window.location.href = 'https://auth.xloudone.com';
+                              } catch (error) {
+                                console.error('Error signing out:', error);
+                                alert('Failed to sign out. Please try again.');
+                              }
+                            }
+                          }}
+                        >
+                          Sign Out All
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Active Login Location */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Active Login Location</h4>
+                          <p className="text-zinc-400 text-sm">View your current login location and IP</p>
+                        </div>
+                        <Button
+                          className="bg-white text-black hover:bg-zinc-100"
+                          onClick={() => {
+                            // TODO: Implement location/IP display
+                            alert('Location/IP display feature coming soon');
+                          }}
+                        >
+                          View
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Login Alerts */}
+                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-semibold mb-1">Login Alerts</h4>
+                          <p className="text-zinc-400 text-sm">Get notified about new logins to your account</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="emailAlerts"
+                              className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                            />
+                            <label htmlFor="emailAlerts" className="text-zinc-300 text-sm">Email</label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="inAppAlerts"
+                              className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500"
+                            />
+                            <label htmlFor="inAppAlerts" className="text-zinc-300 text-sm">In-App</label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 {settingsTab === 'billing' && (
