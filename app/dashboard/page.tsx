@@ -94,9 +94,9 @@ async function fetchDeepSeekResponseStream(
     console.log("[DeepSeek] Starting API call with messages:", messages);
     
     const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
       },
       body: JSON.stringify({ messages }),
     });
@@ -117,33 +117,33 @@ async function fetchDeepSeekResponseStream(
       throw new Error('No response body from DeepSeek API');
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let done = false;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let done = false;
 
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
       
-      if (value) {
-        buffer += decoder.decode(value, { stream: true });
-        let lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      let lines = buffer.split('\n');
+      buffer = lines.pop() || '';
         
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data:')) continue;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
           
-          const data = trimmed.replace(/^data:/, '');
+        const data = trimmed.replace(/^data:/, '');
           if (data === '[DONE]') {
             console.log("[DeepSeek] Stream complete");
             return;
           }
           
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed.choices?.[0]?.delta?.content;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               console.log("[DeepSeek] Received chunk:", delta);
               onChunk(delta);
@@ -207,7 +207,7 @@ function renderAIMessage(text: string) {
   return <span>{text}</span>;
   } catch (error) {
     console.error("Error rendering AI message:", error);
-    return <span>{text}</span>;
+  return <span>{text}</span>;
   }
 }
 
@@ -1530,7 +1530,7 @@ When responding:
       console.log('Image data length:', base64Image.length);
 
       // Send to API
-      const response = await fetch('/api/upload-profile-photo', {
+      const response = await fetch('https://www.xognito.com/api/upload-profile-photo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
