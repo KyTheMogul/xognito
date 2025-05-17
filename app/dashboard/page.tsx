@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, storage } from '@/lib/firebase';
 import { signOut, signInWithCustomToken, updateProfile, updateEmail, deleteUser } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
 import { 
   collection, 
@@ -153,8 +154,7 @@ async function fetchDeepSeekResponseStream(
           }
         }
       }
-    }
-  } catch (error) {
+    } catch (error) {
     console.error("[DeepSeek] Error in API call:", {
       error,
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -1522,47 +1522,40 @@ When responding:
         imageSmoothingQuality: 'high',
       });
 
-      // Convert to base64
-      const base64Image = canvas.toDataURL('image/jpeg', 0.8);
-      const userId = auth.currentUser.uid;
-
-      console.log('Starting profile photo upload for user:', userId);
-      console.log('Image data length:', base64Image.length);
-
-      // Send to API
-      const response = await fetch('https://www.xognito.com/api/upload-profile-photo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image: base64Image,
-          userId: userId,
-        }),
+      // Convert to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+        }, 'image/jpeg', 0.8);
       });
 
-      const data = await response.json();
+      const userId = auth.currentUser.uid;
+      const storageRef = ref(storage, `profile-photos/${userId}/${Date.now()}.jpg`);
       
-      if (!response.ok) {
-        console.error('Upload failed:', data);
-        throw new Error(data.error || 'Failed to upload profile photo');
-      }
+      console.log('Starting profile photo upload for user:', userId);
 
-      console.log('Upload successful:', data);
+      // Upload the file
+      const snapshot = await uploadBytes(storageRef, blob, {
+        contentType: 'image/jpeg',
+        customMetadata: {
+          userId: userId,
+          uploadedAt: new Date().toISOString()
+        }
+      });
 
-      if (!data.downloadURL) {
-        throw new Error('No download URL received from server');
-      }
+      // Get the download URL
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log('Upload successful, URL:', downloadURL);
 
       // Update the user's profile with the new photo URL
       await updateProfile(auth.currentUser, {
-        photoURL: data.downloadURL,
+        photoURL: downloadURL,
       });
 
       // Update the user document in Firestore
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
-        photoURL: data.downloadURL,
+        photoURL: downloadURL,
         updatedAt: serverTimestamp(),
       });
 
