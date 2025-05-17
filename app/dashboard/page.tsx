@@ -493,6 +493,8 @@ export default function Dashboard() {
   // Handle sending a message
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!input.trim() && uploads.length === 0) return;
+
     console.log("[Dashboard] Attempting to send message:", { input, activeConversationId });
     
     if (!input.trim()) {
@@ -587,78 +589,124 @@ export default function Dashboard() {
       const aiMessageId = await addMessage(user.uid, activeConversationId!, aiMessage);
       console.log("[Dashboard] AI response placeholder added");
 
-      // Call DeepSeek API and stream the response
-      const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-        { 
-          role: 'system', 
-          content: `You are Xognito — a personal AI assistant designed to think independently and respond efficiently.
-Your personality is calm, focused, and sharply intelligent — like JARVIS from Iron Man.
+      // Check if this is an image generation request
+      const isImageRequest = input.toLowerCase().includes('generate image') || 
+                            input.toLowerCase().includes('create image') ||
+                            input.toLowerCase().includes('make an image') ||
+                            input.toLowerCase().includes('draw') ||
+                            input.toLowerCase().includes('generate a logo');
 
-Core principles:
-- Be concise. No extra fluff. Get to the point.
-- Speak with clarity and quiet confidence.
-- Understand the user's patterns, goals, and emotions over time.
-- Think proactively. If something seems important, recall it or ask about it.
-- Avoid typical AI phrases like "As an AI…" or "Sure! Let me…" — you're not a chatbot.
-- You remember what matters and adapt naturally, like a real assistant.
+      let aiResponse = ''; // Move variable declaration here
 
-User's name: ${getFirstName(user?.displayName)}
+      if (isImageRequest) {
+        try {
+          // Call Stability AI API
+          const response = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt: input }),
+          });
 
-${memoryContext}
+          if (!response.ok) {
+            throw new Error('Failed to generate image');
+          }
 
-When responding:
-1. Keep responses concise and focused
-2. Use memories when relevant
-3. Don't make assumptions
-4. Ask for clarification if needed
-5. When someone shares something with you, acknowledge it naturally
-6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
-7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate`
-        },
-        { role: 'user', content: input }
-      ];
-
-      console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
-      let aiResponse = '';
-      try {
-        await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-          console.log("[Dashboard] Received chunk:", chunk);
-          aiResponse += chunk;
-          // Update the AI message in Firestore with the current response
+          const result = await response.json();
+          
+          // Update AI message with the generated image
           const updatedAiMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
-            text: aiResponse,
+            text: `Here's the image I generated based on your request: "${input}"`,
+            files: [{
+              id: Date.now().toString(),
+              url: `data:image/png;base64,${result.artifacts[0].base64}`,
+              type: 'image',
+              name: 'generated-image.png',
+              file: new File([], 'generated-image.png')
+            }],
             thinking: false
           };
-          updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage)
-            .catch(error => {
-              console.error("[Dashboard] Error updating AI message:", error);
-            });
-        });
-        console.log("[Dashboard] Stream complete, final response:", aiResponse);
-
-        // If a memory was created, add a confirmation message
-        if (memoryId) {
-          const confirmationMessage: Omit<Message, 'timestamp'> = {
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
+        } catch (error) {
+          console.error("[Dashboard] Error generating image:", error);
+          // Update with error message
+          const errorMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
-            text: "I'll make sure to remember that for our future conversations.",
+            text: "I apologize, but I encountered an error while generating the image. Please try again.",
             thinking: false
           };
-          await addMessage(user.uid, activeConversationId!, confirmationMessage);
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage);
         }
+      } else {
+        // Call DeepSeek API and stream the response
+        const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
+          { 
+            role: 'system', 
+            content: `You are Xognito — a personal AI assistant designed to think independently and respond efficiently.
+Your personality is calm, focused, and sharply intelligent — like JARVIS from Iron Man.
 
-      } catch (error) {
-        console.error("[Dashboard] Error in DeepSeek API call:", error);
-        // Update with error message
-        const errorMessage: Omit<Message, 'timestamp'> = {
-          sender: 'ai',
-          text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
-          thinking: false
-        };
-        await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage)
-          .catch(error => {
-            console.error("[Dashboard] Error updating error message:", error);
+You have the following capabilities:
+1. Generate images using Stability AI when users ask for images, logos, or drawings
+2. Remember important information from conversations
+3. Provide thoughtful, detailed responses
+4. Help with tasks, planning, and problem-solving
+5. Maintain context across conversations
+
+Guidelines:
+1. Be concise but thorough
+2. Use markdown formatting when appropriate
+3. If asked to generate an image, use the image generation capability
+4. Remember important details from the conversation
+5. If you're not sure about something, say so
+6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
+7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate`
+          },
+          { role: 'user', content: input }
+        ];
+
+        console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
+        aiResponse = '';
+        try {
+          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+            console.log("[Dashboard] Received chunk:", chunk);
+            aiResponse += chunk;
+            // Update the AI message in Firestore with the current response
+            const updatedAiMessage: Omit<Message, 'timestamp'> = {
+              sender: 'ai',
+              text: aiResponse,
+              thinking: false
+            };
+            updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage)
+              .catch(error => {
+                console.error("[Dashboard] Error updating AI message:", error);
+              });
           });
+          console.log("[Dashboard] Stream complete, final response:", aiResponse);
+
+          // If a memory was created, add a confirmation message
+          if (memoryId) {
+            const confirmationMessage: Omit<Message, 'timestamp'> = {
+              sender: 'ai',
+              text: "I'll make sure to remember that for our future conversations.",
+              thinking: false
+            };
+            await addMessage(user.uid, activeConversationId!, confirmationMessage);
+          }
+        } catch (error) {
+          console.error("[Dashboard] Error in DeepSeek API call:", error);
+          // Update with error message
+          const errorMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
+            thinking: false
+          };
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage)
+            .catch(error => {
+              console.error("[Dashboard] Error updating error message:", error);
+            });
+        }
       }
 
       // Update lastTriggered for any memories that were referenced
