@@ -1484,6 +1484,36 @@ When responding:
     }
   };
 
+  // Add this function to handle profile photo upload
+  const handleProfilePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload-profile-photo', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload profile photo');
+      }
+
+      const { photoURL } = await response.json();
+      await updateProfile(user, { photoURL });
+      setUser({ ...user, photoURL });
+      setSuccess('Profile photo updated successfully');
+    } catch (error: any) {
+      setError(error.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
       {/* Daily limit error message */}
@@ -1968,7 +1998,7 @@ When responding:
               <div className="flex-1 rounded-xl p-6 bg-transparent overflow-y-auto custom-scrollbar">
                 {settingsTab === 'account' && (
                   <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-white mb-2">Account Settings</h3>
+                    {/* Removed 'Account Settings' text */}
                     
                     {error && (
                       <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded-lg">
@@ -1992,16 +2022,23 @@ When responding:
                             alt="Profile"
                             className="w-20 h-20 rounded-full border-2 border-white object-cover"
                           />
-                          <button
-                            className="absolute bottom-0 right-0 bg-black rounded-full p-1.5 border border-white hover:bg-zinc-800 transition-colors"
-                            onClick={() => {/* TODO: Implement profile picture upload */}}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleProfilePhotoUpload}
+                            className="hidden"
+                            id="profile-photo-upload"
+                          />
+                          <label
+                            htmlFor="profile-photo-upload"
+                            className="absolute bottom-0 right-0 bg-black rounded-full p-1.5 border border-white hover:bg-zinc-800 transition-colors cursor-pointer"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                               <polyline points="17 8 12 3 7 8" />
                               <line x1="12" y1="3" x2="12" y2="15" />
                             </svg>
-                          </button>
+                          </label>
                         </div>
                         <div className="text-zinc-300 text-sm">
                           <p>Upload a new profile picture</p>
@@ -2046,7 +2083,7 @@ When responding:
                     </div>
 
                     {/* Delete Account */}
-                    <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                    <div className="space-y-4">
                       <h4 className="text-white font-semibold mb-4">Delete Account</h4>
                       <div className="space-y-4">
                         <p className="text-zinc-300 text-sm">
