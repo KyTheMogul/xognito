@@ -24,7 +24,9 @@ import {
   arrayUnion,
   Timestamp,
   onSnapshot,
-  setDoc
+  setDoc,
+  arrayRemove,
+  deleteDoc
 } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
 import { canSendMessage, incrementMessageCount, canUploadFile, incrementFileUpload, getUsageStats } from '@/lib/usage';
@@ -1772,26 +1774,97 @@ When responding:
             </span>
           ) : (
             filteredGroups.map(group => (
-              <Button
+              <div
                 key={group.id}
-                variant="ghost"
-                className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full ${
-                  activeGroupId === group.id 
-                    ? 'bg-white text-black' 
-                    : 'text-zinc-200 hover:text-white hover:bg-white/10'
-                }`}
-                onClick={() => setActiveGroupId(group.id)}
+                className="relative group"
+                onMouseEnter={() => setHoveredChatId(group.id)}
+                onMouseLeave={() => setHoveredChatId(null)}
               >
-                <div className="flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  <span className="truncate">{group.name}</span>
-                </div>
-              </Button>
+                <Button
+                  variant="ghost"
+                  className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full pr-10 ${
+                    activeGroupId === group.id 
+                      ? 'bg-white text-black' 
+                      : 'text-zinc-200 hover:text-white hover:bg-white/10'
+                  }`}
+                  onClick={() => setActiveGroupId(group.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    <span className="truncate">{group.name}</span>
+                  </div>
+                </Button>
+                {/* Action icon on hover */}
+                {hoveredChatId === group.id && (
+                  <button
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 transition-colors z-10"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const user = auth.currentUser;
+                      if (!user) return;
+
+                      if (group.hostXloudID === user.uid) {
+                        // User is the creator - show delete confirmation
+                        if (window.confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
+                          try {
+                            // Delete group from Firestore
+                            await deleteDoc(doc(db, 'groups', group.id));
+                            // Remove group from user's groups
+                            await deleteDoc(doc(db, 'users', user.uid, 'groups', group.id));
+                            if (activeGroupId === group.id) {
+                              setActiveGroupId(null);
+                            }
+                          } catch (error) {
+                            console.error('Error deleting group:', error);
+                            alert('Failed to delete group. Please try again.');
+                          }
+                        }
+                      } else {
+                        // User is a member - show leave confirmation
+                        if (window.confirm('Are you sure you want to leave this group?')) {
+                          try {
+                            // Remove user from group members
+                            await updateDoc(doc(db, 'groups', group.id), {
+                              members: arrayRemove(user.uid)
+                            });
+                            // Remove group from user's groups
+                            await deleteDoc(doc(db, 'users', user.uid, 'groups', group.id));
+                            if (activeGroupId === group.id) {
+                              setActiveGroupId(null);
+                            }
+                          } catch (error) {
+                            console.error('Error leaving group:', error);
+                            alert('Failed to leave group. Please try again.');
+                          }
+                        }
+                      }
+                    }}
+                    aria-label={group.hostXloudID === auth.currentUser?.uid ? "Delete group" : "Leave group"}
+                  >
+                    {group.hostXloudID === auth.currentUser?.uid ? (
+                      // Trash can icon for creator
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                    ) : (
+                      // Leave icon for members
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
             ))
           )}
         </div>
