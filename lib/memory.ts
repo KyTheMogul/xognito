@@ -56,14 +56,14 @@ Required JSON format:
   "importanceScore": 0.8
 }`;
 
-    const res = await fetch('https://api.deepseek.ai/v1/chat/completions', {
+    const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat-1.5',
+        model: 'deepseek-chat-2.0',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
       }),
