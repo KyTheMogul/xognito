@@ -61,9 +61,10 @@ import MemoryNotification from '@/components/MemoryNotification';
 import InviteUserModal from '@/components/InviteUserModal';
 import InvitationNotification from '@/components/InvitationNotification';
 import { Suspense } from 'react';
+import GroupRequestNotification from '@/components/GroupRequestNotification';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
-const AI_PROFILE = 'https://randomuser.me/api/portraits/lego/1.jpg';
+const AI_PROFILE = '/XognitoLogoFull.png';
 
 type Message = { sender: 'user' | 'ai'; text: string, files?: UploadedFile[], thinking?: boolean };
 type Conversation = { id: number; name: string };
@@ -343,6 +344,38 @@ export default function Dashboard() {
   const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupModalMode, setGroupModalMode] = useState<'join' | 'create'>('join');
+  const [groupName, setGroupName] = useState('');
+  const [groupDescription, setGroupDescription] = useState('');
+  const [groupCode, setGroupCode] = useState('');
+  const [hostXloudID, setHostXloudID] = useState('');
+  const [userGroups, setUserGroups] = useState<Array<{
+    id: string;
+    name: string;
+    code: string;
+    hostXloudID: string;
+    description?: string;
+  }>>([]);
+  const [searchResults, setSearchResults] = useState<Array<{
+    uid: string;
+    email: string;
+    displayName: string;
+    photoURL: string;
+    xloudId: string;
+  }>>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [groupMessages, setGroupMessages] = useState<Array<{
+    id: string;
+    senderId: string;
+    senderName: string;
+    senderPhoto: string;
+    text: string;
+    timestamp: any;
+    isAI: boolean;
+    thinking?: boolean;
+  }>>([]);
+  const [groupInput, setGroupInput] = useState('');
 
   const filteredChats = search
     ? conversations.filter(chat => chat.title.toLowerCase().includes(search.toLowerCase()))
@@ -1032,6 +1065,269 @@ When responding:
 
     fetchLinkedUsers();
   }, [auth.currentUser]);
+
+  // Add handlers for group actions
+  const handleCreateGroup = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Check if user has reached group limit
+    if (userGroups.length >= 5) {
+      alert('You can only create or join up to 5 groups.');
+      return;
+    }
+
+    // Generate a random group code starting with $
+    const groupCode = `$${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    
+    // Create group in Firestore
+    const groupRef = await addDoc(collection(db, 'groups'), {
+      groupName: groupName,
+      groupCode,
+      hostXloudID: user.uid,
+      description: groupDescription,
+      createdAt: serverTimestamp(),
+      members: [user.uid],
+      pendingRequests: [],
+      blockedUsers: [],
+      capacity: 8
+    });
+
+    // Add to user's groups
+    await setDoc(doc(db, 'users', user.uid, 'groups', groupRef.id), {
+      isHost: true,
+      joinedAt: serverTimestamp()
+    });
+
+    // Update local state
+    setUserGroups(prev => [...prev, {
+      id: groupRef.id,
+      name: groupName,
+      code: groupCode,
+      hostXloudID: user.uid,
+      description: groupDescription
+    }]);
+
+    setShowGroupModal(false);
+  };
+
+  const handleJoinGroup = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Check if user has reached group limit
+    if (userGroups.length >= 5) {
+      alert('You can only create or join up to 5 groups.');
+      return;
+    }
+
+    // Validate group code format
+    if (!groupCode.startsWith('$')) {
+      alert('Group code must start with $');
+      return;
+    }
+
+    // Find group by code and host XloudID
+    const groupsRef = collection(db, 'groups');
+    const q = query(groupsRef, 
+      where('groupCode', '==', groupCode),
+      where('hostXloudID', '==', hostXloudID)
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      alert('Group not found or host XloudID is incorrect');
+      return;
+    }
+
+    const groupDoc = querySnapshot.docs[0];
+    const groupData = groupDoc.data();
+
+    // Check if user is blocked
+    if (groupData.blockedUsers?.includes(user.uid)) {
+      alert('You have been blocked from this group');
+      return;
+    }
+
+    // Add user to pending requests
+    await updateDoc(doc(db, 'groups', groupDoc.id), {
+      pendingRequests: arrayUnion(user.uid)
+    });
+
+    // Show notification to host
+    const notificationRef = await addDoc(collection(db, 'notifications'), {
+      type: 'group_request',
+      groupId: groupDoc.id,
+      groupName: groupData.groupName,
+      userId: user.uid,
+      userEmail: user.email,
+      createdAt: serverTimestamp(),
+      status: 'pending'
+    });
+
+    setShowGroupModal(false);
+  };
+
+  // Add search handler for XloudID
+  const handleXloudIDSearch = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(
+        usersRef,
+        where('xloudId', '>=', searchTerm.toUpperCase()),
+        where('xloudId', '<=', searchTerm.toUpperCase() + '\uf8ff'),
+        limit(5)
+      );
+      
+      const snapshot = await getDocs(q);
+      const results = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          uid: doc.id,
+          email: data.email || '',
+          displayName: data.displayName || data.email || '',
+          photoURL: data.photoURL || USER_PROFILE,
+          xloudId: data.xloudId || ''
+        };
+      });
+      
+      setSearchResults(results);
+      setShowDropdown(true);
+    } catch (error) {
+      console.error('Error searching users:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Add group message listener
+  useEffect(() => {
+    if (!activeGroupId) return;
+
+    const q = query(
+      collection(db, 'groups', activeGroupId, 'messages'),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        senderId: doc.data().senderId || '',
+        senderName: doc.data().senderName || '',
+        senderPhoto: doc.data().senderPhoto || USER_PROFILE,
+        text: doc.data().text || '',
+        timestamp: doc.data().timestamp,
+        isAI: doc.data().isAI || false,
+        thinking: doc.data().thinking || false
+      }));
+      setGroupMessages(messages);
+    });
+
+    return () => unsubscribe();
+  }, [activeGroupId]);
+
+  // Handle sending group message
+  const handleSendGroupMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupInput.trim() || !activeGroupId) return;
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const messageText = groupInput.trim();
+      const isAIRequest = messageText.toLowerCase().includes('@xognito');
+
+      // Add user message
+      await addDoc(collection(db, 'groups', activeGroupId, 'messages'), {
+        senderId: user.uid,
+        senderName: user.displayName || user.email,
+        senderPhoto: user.photoURL || USER_PROFILE,
+        text: messageText,
+        timestamp: serverTimestamp(),
+        isAI: false
+      });
+
+      setGroupInput('');
+
+      // If message contains @xognito, trigger AI response
+      if (isAIRequest) {
+        // Add AI thinking message
+        const aiMessageRef = await addDoc(collection(db, 'groups', activeGroupId, 'messages'), {
+          senderId: 'xognito',
+          senderName: 'Xognito',
+          senderPhoto: AI_PROFILE,
+          text: '...',
+          timestamp: serverTimestamp(),
+          isAI: true,
+          thinking: true
+        });
+
+        // Get relevant memories for context
+        const relevantMemories = await getRelevantMemories(user.uid, messageText);
+        const memoryContext = generateMemoryContext(relevantMemories);
+
+        // Call DeepSeek API
+        const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
+          { 
+            role: 'system', 
+            content: `You are Xognito — a personal AI assistant in a group chat.
+Your personality is calm, focused, and sharply intelligent — like JARVIS from Iron Man.
+
+Core principles:
+- Be concise. No extra fluff. Get to the point.
+- Speak with clarity and quiet confidence.
+- Understand the group's context and dynamics.
+- Think proactively. If something seems important, recall it or ask about it.
+- Avoid typical AI phrases like "As an AI…" or "Sure! Let me…" — you're not a chatbot.
+- You remember what matters and adapt naturally, like a real assistant.
+
+${memoryContext}
+
+When responding:
+1. Keep responses concise and focused
+2. Use memories when relevant
+3. Don't make assumptions
+4. Ask for clarification if needed
+5. When someone shares something with you, acknowledge it naturally
+6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note`
+          },
+          { role: 'user', content: messageText }
+        ];
+
+        let aiResponse = '';
+        try {
+          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+            aiResponse += chunk;
+            // Update the AI message in Firestore with the current response
+            updateDoc(doc(db, 'groups', activeGroupId, 'messages', aiMessageRef.id), {
+              text: aiResponse,
+              thinking: false
+            }).catch(error => {
+              console.error('Error updating AI message:', error);
+            });
+          });
+        } catch (error) {
+          console.error('Error in DeepSeek API call:', error);
+          // Update with error message
+          await updateDoc(doc(db, 'groups', activeGroupId, 'messages', aiMessageRef.id), {
+            text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
+            thinking: false
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error sending group message:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
@@ -1808,8 +2104,8 @@ When responding:
 
       {/* Add Group Modal */}
       {showGroupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-zinc-900/95 rounded-2xl shadow-2xl p-8 w-full max-w-md relative border border-zinc-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="bg-zinc-950/95 rounded-2xl shadow-2xl p-8 w-full max-w-md relative border border-zinc-800">
             <button 
               className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors"
               onClick={() => setShowGroupModal(false)}
@@ -1822,7 +2118,7 @@ When responding:
 
             {/* Toggle Switch */}
             <div className="flex justify-center mb-8">
-              <div className="bg-zinc-800 rounded-full p-1 flex gap-1">
+              <div className="bg-zinc-900 rounded-full p-1 flex gap-1">
                 <button
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     groupModalMode === 'join' 
@@ -1848,34 +2144,99 @@ When responding:
 
             {groupModalMode === 'join' ? (
               <div className="space-y-4">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Enter Group Code"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-full px-4 py-3 text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Enter Group Code (e.g., $AB12-89GF)"
+                      value={groupCode}
+                      onChange={(e) => setGroupCode(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-full px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Enter Host XloudID"
+                      value={hostXloudID}
+                      onChange={(e) => {
+                        setHostXloudID(e.target.value);
+                        handleXloudIDSearch(e.target.value);
+                      }}
+                      onFocus={() => {
+                        if (hostXloudID) {
+                          handleXloudIDSearch(hostXloudID);
+                        }
+                      }}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-full px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {showDropdown && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                        {isSearching ? (
+                          <div className="p-3 text-zinc-400 text-sm">Searching...</div>
+                        ) : searchResults.length > 0 ? (
+                          searchResults.map((user) => (
+                            <button
+                              key={user.uid}
+                              onClick={() => {
+                                setHostXloudID(user.xloudId);
+                                setShowDropdown(false);
+                              }}
+                              className="w-full p-3 flex items-center gap-3 hover:bg-zinc-800 transition-colors text-left"
+                            >
+                              <img
+                                src={user.photoURL || USER_PROFILE}
+                                alt={user.displayName}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-white font-medium truncate">
+                                  {user.displayName || user.email}
+                                </div>
+                                <div className="text-zinc-400 text-sm truncate">
+                                  {user.xloudId}
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-3 text-zinc-400 text-sm">No users found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <Button className="w-full bg-white text-black hover:bg-zinc-100 font-semibold rounded-full py-3">
+                <Button 
+                  className="w-full bg-white text-black hover:bg-zinc-100 font-semibold rounded-full py-3"
+                  onClick={handleJoinGroup}
+                >
                   Find Group
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <input
                     type="text"
                     placeholder="Name For Group"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <textarea
                     placeholder="Group Description (optional)"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24"
+                    value={groupDescription}
+                    onChange={(e) => setGroupDescription(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24"
                   />
                 </div>
-                <p className="text-zinc-400 text-sm text-center">
+                <p className="text-zinc-500 text-sm text-center">
                   Groups are limited to 8 member capacity currently.
                 </p>
-                <Button className="w-full bg-white text-black hover:bg-zinc-100 font-semibold rounded-full py-3">
+                <Button 
+                  className="w-full bg-white text-black hover:bg-zinc-100 font-semibold rounded-full py-3"
+                  onClick={handleCreateGroup}
+                >
                   Create Group
                 </Button>
               </div>
@@ -1883,6 +2244,128 @@ When responding:
           </div>
         </div>
       )}
+
+      {/* Add group buttons to sidebar under Groups header */}
+      <div className="flex flex-col gap-2 px-4 pb-4">
+        {userGroups.map(group => (
+          <Button
+            key={group.id}
+            variant="ghost"
+            className={`justify-start px-3 py-2 text-sm font-normal transition-colors rounded-lg w-full ${
+              activeGroupId === group.id 
+                ? 'bg-white text-black' 
+                : 'text-zinc-200 hover:text-white hover:bg-white/10'
+            }`}
+            onClick={() => setActiveGroupId(group.id)}
+          >
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              <span className="truncate">{group.name}</span>
+            </div>
+          </Button>
+        ))}
+      </div>
+
+      {/* Group Chat UI */}
+      {activeGroupId && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-black">
+          {/* Group Chat Header */}
+          <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveGroupId(null)}
+                className="text-zinc-400 hover:text-white"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h2 className="text-xl font-semibold text-white">
+                {userGroups.find(g => g.id === activeGroupId)?.name}
+              </h2>
+            </div>
+          </div>
+
+          {/* Group Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {groupMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex items-end gap-2 ${
+                  msg.senderId === auth.currentUser?.uid ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                {msg.senderId !== auth.currentUser?.uid && (
+                  <img
+                    src={msg.senderPhoto}
+                    alt={msg.senderName}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                )}
+                <div
+                  className={`rounded-2xl px-4 py-2 max-w-[70%] ${
+                    msg.senderId === auth.currentUser?.uid
+                      ? 'bg-blue-600 text-white'
+                      : msg.isAI
+                      ? 'bg-zinc-800 text-white'
+                      : 'bg-zinc-700 text-white'
+                  }`}
+                >
+                  {msg.senderId !== auth.currentUser?.uid && (
+                    <div className="text-xs text-zinc-300 mb-1">{msg.senderName}</div>
+                  )}
+                  {msg.thinking ? (
+                    <span className="inline-block w-8">
+                      <span className="dot-anim-smooth">.</span>
+                      <span className="dot-anim-smooth" style={{ animationDelay: '0.18s' }}>.</span>
+                      <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
+                    </span>
+                  ) : (
+                    msg.text
+                  )}
+                </div>
+                {msg.senderId === auth.currentUser?.uid && (
+                  <img
+                    src={msg.senderPhoto}
+                    alt={msg.senderName}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Group Chat Input */}
+          <form
+            onSubmit={handleSendGroupMessage}
+            className="p-4 border-t border-zinc-800"
+          >
+            <div className="flex items-center gap-2 bg-zinc-900 rounded-full px-4 py-2">
+              <input
+                type="text"
+                value={groupInput}
+                onChange={(e) => setGroupInput(e.target.value)}
+                placeholder="Type a message... (use @xognito to get AI response)"
+                className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400"
+              />
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
+              >
+                Send
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Add GroupRequestNotification component */}
+      <GroupRequestNotification />
     </div>
   );
 } 
