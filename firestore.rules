@@ -2,6 +2,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
@@ -15,7 +22,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow create: if isAuthenticated() && (
         request.auth.uid == userId || 
         (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
@@ -160,6 +167,32 @@ service cloud.firestore {
         request.auth.token.provider == 'xloudid' ||
         resource.data.userId.matches('^xloudid_.*$')
       );
+    }
+
+    // Redeem codes collection rules
+    match /redeemCodes/{codeId} {
+      // Only admins can create new codes
+      allow create: if isAdmin();
+      
+      // Only admins can read all codes
+      allow read: if isAdmin();
+      
+      // Users can only read codes they're trying to use
+      allow get: if isAuthenticated() && 
+        request.query.limit <= 1 && 
+        request.query.filters.size() == 1 && 
+        request.query.filters[0].op == '==' && 
+        request.query.filters[0].path == ['code'] && 
+        request.query.filters[0].value == request.query.filters[0].value;
+      
+      // Users can only update codes they're using (marking as used)
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['used', 'usedBy', 'usedAt']) &&
+        request.resource.data.used == true &&
+        request.resource.data.usedBy == request.auth.uid &&
+        request.resource.data.usedAt is timestamp &&
+        resource.data.used == false;
     }
 
     // Default deny
