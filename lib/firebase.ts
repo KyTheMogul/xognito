@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Validate required environment variables
 const requiredEnvVars = {
@@ -63,4 +64,13 @@ try {
   throw error;
 }
 
-export { app, auth, db }; 
+let storage: FirebaseStorage;
+try {
+  storage = getStorage(app);
+  console.log("[Firebase] Storage initialized successfully");
+} catch (error) {
+  console.error("[Firebase] Storage initialization error:", error);
+  throw error;
+}
+
+export { app, auth, db, storage }; 
