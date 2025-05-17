@@ -92,9 +92,9 @@ async function fetchDeepSeekResponseStream(
     console.log("[DeepSeek] Starting API call with messages:", messages);
     
     const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ messages }),
     });
@@ -115,33 +115,33 @@ async function fetchDeepSeekResponseStream(
       throw new Error('No response body from DeepSeek API');
     }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-  let done = false;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let done = false;
 
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
         
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      let lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+        let lines = buffer.split('\n');
+        buffer = lines.pop() || '';
           
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
             
-        const data = trimmed.replace(/^data:/, '');
+          const data = trimmed.replace(/^data:/, '');
           if (data === '[DONE]') {
             console.log("[DeepSeek] Stream complete");
             return;
           }
             
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               console.log("[DeepSeek] Received chunk:", delta);
               onChunk(delta);
@@ -151,7 +151,8 @@ async function fetchDeepSeekResponseStream(
           }
         }
       }
-    } catch (error) {
+    }
+  } catch (error) {
     console.error("[DeepSeek] Error in API call:", {
       error,
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -165,42 +166,47 @@ async function fetchDeepSeekResponseStream(
 
 // Helper to parse code blocks from AI response (triple backtick or indented)
 function renderAIMessage(text: string) {
-  // Regex to match code blocks: ```lang\ncode\n```
-  const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
-  let match = codeBlockRegex.exec(text);
-  if (match) {
-    // Only show the first code block and any text before it
-    const before = text.slice(0, match.index).trim();
-    const lang = match[1] || 'plaintext';
-    const code = match[2];
-    return <CodeBlock lang={lang} code={code} before={before} />;
-  }
-  // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
-  const lines = text.split(/\r?\n/);
-  let inCode = false;
-  let codeLines: string[] = [];
-  let beforeLines: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^(    |\t)/.test(line)) {
-      if (!inCode) {
-        inCode = true;
-      }
-      codeLines.push(line.replace(/^(    |\t)/, ''));
-    } else {
-      if (!inCode) {
-        beforeLines.push(line);
+  try {
+    // Regex to match code blocks: ```lang\ncode\n```
+    const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
+    let match = codeBlockRegex.exec(text);
+    if (match) {
+      // Only show the first code block and any text before it
+      const before = text.slice(0, match.index).trim();
+      const lang = match[1] || 'plaintext';
+      const code = match[2];
+      return <CodeBlock lang={lang} code={code} before={before} />;
+    }
+    // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
+    const lines = text.split(/\r?\n/);
+    let inCode = false;
+    let codeLines: string[] = [];
+    let beforeLines: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^(    |\t)/.test(line)) {
+        if (!inCode) {
+          inCode = true;
+        }
+        codeLines.push(line.replace(/^(    |\t)/, ''));
       } else {
-        // End of first code block
-        break;
+        if (!inCode) {
+          beforeLines.push(line);
+        } else {
+          // End of first code block
+          break;
+        }
       }
     }
+    if (codeLines.length > 0) {
+      return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
+    }
+    // If no code block found, just return the text
+    return <span>{text}</span>;
+  } catch (error) {
+    console.error("Error rendering AI message:", error);
+    return <span>{text}</span>;
   }
-  if (codeLines.length > 0) {
-    return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
-  }
-  // If no code block found, just return the text
-  return <span>{text}</span>;
 }
 
 // CodeBlock component with language label and copy button
