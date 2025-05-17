@@ -67,6 +67,7 @@ import { Suspense } from 'react';
 import GroupRequestNotification from '../components/GroupRequestNotification';
 import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
+import { applyRedeemCode } from '../lib/redeemCode';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -1865,8 +1866,8 @@ When responding:
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 transition-colors z-10"
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const user = auth.currentUser;
-                      if (!user) return;
+    const user = auth.currentUser;
+      if (!user) return;
 
                       if (group.hostXloudID === user.uid) {
                         // User is the creator - show delete confirmation
@@ -2426,7 +2427,7 @@ When responding:
                               try {
                                 await signOut(auth);
                                 window.location.href = 'https://auth.xloudone.com';
-                              } catch (error) {
+      } catch (error) {
                                 console.error('Error signing out:', error);
                                 alert('Failed to sign out. Please try again.');
                               }
@@ -2490,7 +2491,7 @@ When responding:
                 {settingsTab === 'billing' && (
                   <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">Billing & Subscription</h3>
-                    <div className="space-y-4">
+            <div className="space-y-4">
                       {/* Current Plan */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Current Plan</h4>
@@ -2758,13 +2759,13 @@ When responding:
                           <h4 className="text-white font-semibold mb-1">Memory Visualization</h4>
                           <p className="text-zinc-400 text-sm">Visual representation of your memory network (Pro+ feature)</p>
                         </div>
-                        <Button
+                <Button 
                           className="bg-zinc-700 text-zinc-400 cursor-not-allowed"
                           disabled
-                        >
+                >
                           Coming Soon
-                        </Button>
-                      </div>
+                </Button>
+              </div>
                     </div>
                   </div>
                 )}
@@ -2846,8 +2847,8 @@ When responding:
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+              )}
+            </div>
             </div>
           </div>
         </div>
@@ -3111,7 +3112,7 @@ When responding:
             </div>
 
             {groupModalMode === 'join' ? (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 <div className="space-y-3">
                   <div className="relative">
                     <input
@@ -3208,9 +3209,9 @@ When responding:
                   Create Group
                 </Button>
               </div>
-            )}
-          </div>
-        </div>
+                )}
+              </div>
+            </div>
       )}
 
       {/* Group Chat UI */}
@@ -3230,7 +3231,7 @@ When responding:
               <h2 className="text-xl font-semibold text-white">
                 {userGroups.find(g => g.id === activeGroupId)?.name}
               </h2>
-            </div>
+          </div>
           </div>
 
           {/* Group Messages */}
