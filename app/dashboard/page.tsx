@@ -1498,7 +1498,8 @@ When responding:
 
     const reader = new FileReader();
     reader.onload = () => {
-      setImageToCrop(reader.result as string);
+      const base64Image = reader.result as string;
+      setImageToCrop(base64Image);
       setShowCropper(true);
     };
     reader.readAsDataURL(file);
@@ -1506,11 +1507,12 @@ When responding:
 
   // Function to handle the cropped image
   const handleCroppedImage = async () => {
-    if (!cropper) return;
+    if (!cropper || !auth.currentUser) return;
 
-    const croppedImage = cropper.getCroppedCanvas().toDataURL();
-    const user = auth.currentUser;
-    if (!user) return;
+    const croppedImage = cropper.getCroppedCanvas().toDataURL('image/jpeg');
+    const userId = auth.currentUser.uid;
+
+    console.log('Uploading profile photo for user:', userId);
 
     try {
       const response = await fetch('/api/upload-profile-photo', {
@@ -1518,22 +1520,30 @@ When responding:
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ image: croppedImage }),
+        body: JSON.stringify({
+          image: croppedImage,
+          userId,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to upload profile photo');
+        const errorData = await response.json();
+        console.error('Upload failed:', errorData);
+        throw new Error(errorData.error || 'Failed to upload profile photo');
       }
 
-      const { photoURL } = await response.json();
-      await updateProfile(user, { photoURL });
-      setUser({ ...user, photoURL });
-      setSuccess('Profile photo updated successfully');
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
+      const data = await response.json();
+      console.log('Upload successful:', data);
+
+      // Update the user's profile with the new photo URL
+      await updateProfile(auth.currentUser, {
+        photoURL: data.downloadURL,
+      });
+
       setShowCropper(false);
       setImageToCrop(null);
+    } catch (error) {
+      console.error('Error uploading profile photo:', error);
     }
   };
 
