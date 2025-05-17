@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage } from '@/lib/firebase-admin';
-import { getAuth } from 'firebase-admin/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,29 +30,33 @@ export async function POST(req: NextRequest) {
     }
 
     // Create a reference to the storage location
-    const storageRef = storage.bucket().file(`profile-photos/${userId}/${Date.now()}.jpg`);
-    console.log('Created storage reference:', storageRef.name);
-
+    const bucket = storage.bucket();
+    const file = bucket.file(`profile-photos/${userId}/${Date.now()}.jpg`);
+    
     try {
       // Upload the base64 image to Firebase Storage
       console.log('Attempting to upload image...');
       const buffer = Buffer.from(image.split(',')[1], 'base64');
-      await storageRef.save(buffer, {
+      
+      await file.save(buffer, {
         metadata: {
           contentType: 'image/jpeg',
         },
+        resumable: false
       });
+      
       console.log('Image uploaded successfully');
 
       // Get the download URL
       console.log('Getting download URL...');
-      const [url] = await storageRef.getSignedUrl({
+      const [url] = await file.getSignedUrl({
         action: 'read',
         expires: '03-01-2500', // Far future expiration
       });
+      
       console.log('Got download URL:', url);
-
       return NextResponse.json({ downloadURL: url });
+      
     } catch (uploadError: any) {
       console.error('Error during upload:', {
         code: uploadError.code,
