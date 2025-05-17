@@ -4,7 +4,9 @@ import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 export async function POST(req: NextRequest) {
   try {
-    const { image, userId } = await req.json();
+    const payload = await req.json();
+    console.log('Received payload:', payload);
+    const { image, userId } = payload;
     if (!image || !userId) {
       return NextResponse.json({ error: 'Missing image or userId' }, { status: 400 });
     }
