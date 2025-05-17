@@ -1439,6 +1439,12 @@ When responding:
       switch (field) {
         case 'displayName':
           await updateProfile(user, { displayName: value });
+          // Update display name in Firestore user document
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, {
+            displayName: value,
+            updatedAt: serverTimestamp()
+          });
           setSuccess('Display name updated successfully');
           break;
         case 'email':
