@@ -1006,15 +1006,19 @@ ${memoryContext}`
     if (!user) return;
 
     const fetchSubscription = async () => {
-      const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
-      const subscriptionDoc = await getDoc(subscriptionRef);
-      if (subscriptionDoc.exists()) {
-        const subscription = subscriptionDoc.data() as DocumentData;
-        console.log('Fetched subscription data:', subscription);
-        setUserSubscription(subscription as any);
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setUserSubscription({
+          plan: data.selectedPlan || 'free',
+          isActive: data.subscriptionStatus === 'active',
+          ...data
+        });
+        console.log('Loaded user subscription from user doc:', data);
       } else {
-        console.log('No subscription found, defaulting to free plan');
-        setUserSubscription({ plan: 'free', isActive: true });
+        setUserSubscription({ plan: 'free', isActive: false });
+        console.log('No user doc found, defaulting to free plan');
       }
     };
 
