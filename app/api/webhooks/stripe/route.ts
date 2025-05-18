@@ -25,9 +25,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
 
+    console.log('Processing webhook event:', event.type);
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        console.log('Checkout session completed:', {
+          sessionId: session.id,
+          customerId: session.customer,
+          subscriptionId: session.subscription,
+          metadata: session.metadata
+        });
         
         // Get the user ID and plan from the session metadata
         const userId = session.metadata?.userId;
@@ -38,25 +46,42 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
+        // Get subscription details from Stripe
+        const subscription = session.subscription ? 
+          await stripe.subscriptions.retrieve(session.subscription as string) : null;
+
+        if (!subscription) {
+          console.error('No subscription found for session:', session.id);
+          return NextResponse.json({ error: 'No subscription found' }, { status: 400 });
+        }
+
         // Update user's subscription in Firebase
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
           subscription: {
             plan: plan,
-            status: 'active',
-            startDate: Timestamp.now(),
-            endDate: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30 days
+            status: subscription.status === 'active' ? 'active' : 'pending',
+            startDate: Timestamp.fromDate(new Date(subscription.current_period_start * 1000)),
+            endDate: Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
             stripeCustomerId: session.customer,
-            stripeSubscriptionId: session.subscription
+            stripeSubscriptionId: session.subscription,
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+            trialEnd: subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null
           }
         });
 
-        console.log(`Updated subscription for user ${userId} to ${plan} plan`);
+        console.log(`Updated subscription for user ${userId} to ${plan} plan with status ${subscription.status}`);
         break;
       }
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
+        console.log('Subscription updated:', {
+          subscriptionId: subscription.id,
+          status: subscription.status,
+          metadata: subscription.metadata
+        });
+
         const userId = subscription.metadata?.userId;
 
         if (!userId) {
@@ -68,7 +93,9 @@ export async function POST(req: Request) {
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
           'subscription.status': subscription.status,
-          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000))
+          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
+          'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
+          'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null
         });
 
         console.log(`Updated subscription status for user ${userId} to ${subscription.status}`);
@@ -77,6 +104,11 @@ export async function POST(req: Request) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
+        console.log('Subscription deleted:', {
+          subscriptionId: subscription.id,
+          metadata: subscription.metadata
+        });
+
         const userId = subscription.metadata?.userId;
 
         if (!userId) {
@@ -88,7 +120,8 @@ export async function POST(req: Request) {
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
           'subscription.status': 'cancelled',
-          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000))
+          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
+          'subscription.cancelAtPeriodEnd': true
         });
 
         console.log(`Marked subscription as cancelled for user ${userId}`);
