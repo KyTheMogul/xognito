@@ -26,7 +26,8 @@ import {
   onSnapshot,
   setDoc,
   arrayRemove,
-  deleteDoc
+  deleteDoc,
+  DocumentData
 } from 'firebase/firestore';
 import { loadStripe } from '@stripe/stripe-js';
 import { canSendMessage, incrementMessageCount, canUploadFile, incrementFileUpload, getUsageStats } from '@/lib/usage';
@@ -67,7 +68,6 @@ import { Suspense } from 'react';
 import GroupRequestNotification from '../components/GroupRequestNotification';
 import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
-import { applyRedeemCode } from '../lib/redeemCode';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -1005,19 +1005,16 @@ ${memoryContext}`
     const user = auth.currentUser;
     if (!user) return;
 
-    const unsubscribe = onSnapshot(doc(db, 'users', user.uid, 'subscription', 'current'), (doc) => {
-      if (doc.exists()) {
-        setUserSubscription(doc.data() as any);
-      } else {
-        // Set default free plan if no subscription exists
-        setUserSubscription({
-          plan: 'free',
-          isActive: true
-        });
+    const fetchSubscription = async () => {
+      const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
+      const subscriptionDoc = await getDoc(subscriptionRef);
+      if (subscriptionDoc.exists()) {
+        const subscription = subscriptionDoc.data() as DocumentData;
+        setUserSubscription(subscription as any);
       }
-    });
+    };
 
-    return () => unsubscribe();
+    fetchSubscription();
   }, [auth.currentUser]);
 
   const handlePlanChange = async (newPlan: 'pro' | 'pro_plus') => {
@@ -1783,7 +1780,7 @@ When responding:
             <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
             <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
-                    {userSubscription?.plan === 'free' ? 'Free Plan' : 'Pro Plan'}
+      {userSubscription?.plan === 'free' ? 'Free Plan' : `${userSubscription?.plan} Plan`}
             </div>
             <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
