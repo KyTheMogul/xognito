@@ -438,9 +438,9 @@ export default function Dashboard() {
       text: '', 
       timestamp: Timestamp.now() 
     }]);
-    // Simulate sending the message
-    const event = new Event('submit', { bubbles: true, cancelable: true });
-    document.querySelector('form')?.dispatchEvent(event);
+    // Immediately send the message to the AI
+    const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+    handleSend(syntheticEvent);
   };
 
   // Real-time conversations
