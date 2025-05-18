@@ -1010,8 +1010,10 @@ ${memoryContext}`
       const subscriptionDoc = await getDoc(subscriptionRef);
       if (subscriptionDoc.exists()) {
         const subscription = subscriptionDoc.data() as DocumentData;
+        console.log('Fetched subscription data:', subscription);
         setUserSubscription(subscription as any);
       } else {
+        console.log('No subscription found, defaulting to free plan');
         setUserSubscription({ plan: 'free', isActive: true });
       }
     };
