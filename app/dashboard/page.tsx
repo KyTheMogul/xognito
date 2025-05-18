@@ -192,7 +192,10 @@ function renderAIMessage(text: string) {
           // Clean up any extra newlines within the item
           return item.replace(/\n(?!\d+\.|\*)/g, ' ').trim();
         });
-        const afterList = text.slice((firstMatch.index || 0) + firstMatch[0].length).trim();
+        
+        // Get the content after the last list item
+        const lastMatch = listMatches[listMatches.length - 1];
+        const afterList = text.slice((lastMatch.index || 0) + lastMatch[0].length).trim();
 
         // Generate a title from the content before the list
         const generateTitle = (text: string) => {
