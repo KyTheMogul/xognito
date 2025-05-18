@@ -20,6 +20,78 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.isInvitedUser == true;
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidTimestamp() {
+      return request.time != null;
+    }
+    
+    function isValidSettingsData() {
+      let data = request.resource.data;
+      return data.theme in ['dark', 'light', 'system'] &&
+             data.notifications.email is bool &&
+             data.notifications.push is bool &&
+             data.notifications.weeklyDigest is bool &&
+             data.notifications.groupRequests is bool &&
+             data.ai.model in ['default', 'pro', 'custom'] &&
+             data.ai.temperature is number &&
+             data.ai.temperature >= 0.0 &&
+             data.ai.temperature <= 1.0 &&
+             data.ai.maxTokens is number &&
+             data.ai.maxTokens >= 100 &&
+             data.ai.maxTokens <= 4000 &&
+             data.memory.enabled is bool &&
+             data.memory.retentionDays is number &&
+             data.memory.retentionDays >= 1 &&
+             data.memory.retentionDays <= 365 &&
+             data.memory.autoArchive is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+    
+    function isValidBillingData() {
+      let data = request.resource.data;
+      return data.plan in ['free', 'pro', 'pro_plus'] &&
+             data.status in ['active', 'canceled', 'past_due', 'trialing'] &&
+             (!('stripeCustomerId' in data) || data.stripeCustomerId is string) &&
+             (!('stripeSubscriptionId' in data) || data.stripeSubscriptionId is string) &&
+             data.startDate is timestamp &&
+             data.nextBillingDate is timestamp &&
+             (!('trialEndsAt' in data) || data.trialEndsAt is timestamp) &&
+             (!('paymentMethod' in data) || (
+               data.paymentMethod.id is string &&
+               data.paymentMethod.last4 is string &&
+               data.paymentMethod.brand is string &&
+               data.paymentMethod.expMonth is number &&
+               data.paymentMethod.expYear is number
+             )) &&
+             data.billingHistory is list &&
+             data.usage.messagesToday is number &&
+             data.usage.filesUploaded is number &&
+             data.usage.lastReset is timestamp &&
+             (!('group' in data) || (
+               data.group.id is string &&
+               data.group.name is string &&
+               data.group.owner is string &&
+               data.group.members is list
+             )) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+    
+    function isValidBillingHistoryEntry() {
+      let entry = request.resource.data.billingHistory[request.resource.data.billingHistory.size() - 1];
+      return entry.id is string &&
+             entry.amount is number &&
+             entry.amount > 0 &&
+             entry.currency is string &&
+             entry.status in ['succeeded', 'failed', 'pending'] &&
+             entry.date is timestamp &&
+             entry.description is string;
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
@@ -93,6 +165,55 @@ service cloud.firestore {
           request.auth.uid == userId || 
           (request.auth.token.provider == 'xloudid' && request.auth.uid.matches('^xloudid_.*$'))
         );
+      }
+
+      // User settings rules
+      match /settings/{document=**} {
+        // Allow read if user is authenticated and owns the document
+        allow read: if isOwner(userId);
+        
+        // Allow write if user is authenticated, owns the document, and data is valid
+        allow create: if isOwner(userId) && 
+          (
+            (document == 'user' && isValidSettingsData()) ||
+            (document == 'billing' && isValidBillingData())
+          );
+        
+        allow update: if isOwner(userId) && 
+          (
+            (document == 'user' && isValidSettingsData()) ||
+            (document == 'billing' && (
+              isValidBillingData() ||
+              // Allow billing history updates
+              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['billingHistory', 'updatedAt']) && 
+               isValidBillingHistoryEntry()) ||
+              // Allow usage stats updates
+              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usage', 'updatedAt']))
+            ))
+          );
+        
+        // Prevent deletion of settings documents
+        allow delete: if false;
+      }
+
+      // Additional rules for group billing
+      match /settings/billing {
+        // Allow group owner to read billing info of group members
+        allow read: if isAuthenticated() && 
+          (
+            isOwner(userId) || 
+            (resource.data.group != null && 
+             resource.data.group.owner == request.auth.uid)
+          );
+        
+        // Allow group owner to update billing info of group members
+        allow update: if isAuthenticated() && 
+          (
+            isOwner(userId) || 
+            (resource.data.group != null && 
+             resource.data.group.owner == request.auth.uid &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['group', 'updatedAt']))
+          );
       }
     }
 

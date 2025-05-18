@@ -201,11 +201,36 @@ function renderAIMessage(text: string) {
         const generateTitle = (text: string) => {
           // Remove any markdown formatting
           const cleanText = text.replace(/\*\*/g, '').replace(/__/g, '');
-          // Get the last sentence or phrase before the list
-          const sentences = cleanText.split(/[.!?]/);
-          const lastSentence = sentences[sentences.length - 1].trim();
-          // If the last sentence is too long, take the first part
-          return lastSentence.length > 50 ? lastSentence.slice(0, 50) + '...' : lastSentence;
+          
+          // Extract the main topic from common patterns
+          const patterns = [
+            /(?:here'?s|here is|here are) (?:a|an|the)? ([^.!?]+?)(?: in \d+ steps| recipe| guide| steps| instructions| list)/i,
+            /(?:how to|steps to|guide to) ([^.!?]+?)(?: in \d+ steps| recipe| guide| steps| instructions| list)/i,
+            /(?:making|creating|preparing) ([^.!?]+?)(?: in \d+ steps| recipe| guide| steps| instructions| list)/i,
+            /(?:here'?s|here is|here are) (?:a|an|the)? ([^.!?]+?)(?: recipe| guide| steps| instructions| list)/i
+          ];
+
+          for (const pattern of patterns) {
+            const match = cleanText.match(pattern);
+            if (match && match[1]) {
+              // Clean up the extracted title
+              let title = match[1].trim()
+                .replace(/^[^a-zA-Z0-9]+/, '') // Remove leading non-alphanumeric
+                .replace(/[^a-zA-Z0-9]+$/, '') // Remove trailing non-alphanumeric
+                .replace(/\s+/g, ' '); // Normalize spaces
+              
+              // Capitalize first letter of each word
+              title = title.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+              
+              return title;
+            }
+          }
+
+          // If no pattern matches, use the first sentence
+          const firstSentence = cleanText.split(/[.!?]/)[0].trim();
+          return firstSentence.length > 50 ? firstSentence.slice(0, 50) + '...' : firstSentence;
         };
 
         const containerTitle = beforeList ? generateTitle(beforeList) : 'List';
@@ -214,32 +239,10 @@ function renderAIMessage(text: string) {
           <div className="space-y-4">
             {beforeList && <div className="whitespace-pre-wrap">{beforeList}</div>}
             <div className="border border-zinc-700 rounded-lg overflow-hidden">
-              <button
-                onClick={(e) => {
-                  const container = (e.target as HTMLElement).nextElementSibling;
-                  if (container) {
-                    container.classList.toggle('hidden');
-                    (e.target as HTMLElement).classList.toggle('expanded');
-                  }
-                }}
-                className="w-full px-4 py-2 bg-zinc-800/50 hover:bg-zinc-800 flex items-center justify-between text-left transition-colors"
-              >
+              <div className="w-full px-4 py-2 bg-zinc-800/50 flex items-center justify-between text-left">
                 <span className="font-medium">{containerTitle}</span>
-                <svg
-                  className="w-5 h-5 transform transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              <div className="hidden px-4 py-3 space-y-2">
+              </div>
+              <div className="px-4 py-3 space-y-2">
                 {listItems.map((item, index) => (
                   <div key={index} className="flex items-start gap-2">
                     <span className="text-zinc-400 mt-1">
@@ -2602,12 +2605,12 @@ When responding:
                 {settingsTab === 'billing' && (
                   <div className="space-y-6 pl-6 pr-4">
                     <h3 className="text-lg font-bold text-white mb-2">Billing & Subscription</h3>
-            <div className="space-y-4">
+                    <div className="space-y-4">
                       {/* Current Plan */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-2">Current Plan</h4>
                         <div className="flex items-center justify-between">
-                  <div>
+                          <div>
                             <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
                             {userSubscription?.isInvitedUser && (
                               <div className="mt-2 space-y-1">
@@ -2627,6 +2630,16 @@ When responding:
                                 Next billing date: {userSubscription.nextBillingDate.toDate().toLocaleDateString()}
                               </p>
                             )}
+                            {userSubscription?.trialEndsAt && (
+                              <p className="text-zinc-400 text-xs mt-1">
+                                Trial ends: {userSubscription.trialEndsAt.toDate().toLocaleDateString()}
+                              </p>
+                            )}
+                            {userSubscription?.startDate && (
+                              <p className="text-zinc-400 text-xs mt-1">
+                                Subscription started: {userSubscription.startDate.toDate().toLocaleDateString()}
+                              </p>
+                            )}
                           </div>
                           <Button
                             className="bg-white text-black hover:bg-zinc-100"
@@ -2641,25 +2654,35 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-3">Payment Methods</h4>
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
-                            <div className="flex items-center gap-3">
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
-                                <rect x="1" y="4" width="22" height="16" rx="2" />
-                                <line x1="1" y1="10" x2="23" y2="10" />
-                              </svg>
-                              <div>
-                                <p className="text-white text-sm">•••• •••• •••• 4242</p>
-                                <p className="text-zinc-400 text-xs">Expires 12/24</p>
+                          {userSubscription?.stripeCustomerId ? (
+                            <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                              <div className="flex items-center gap-3">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
+                                  <rect x="1" y="4" width="22" height="16" rx="2" />
+                                  <line x1="1" y1="10" x2="23" y2="10" />
+                                </svg>
+                                <div>
+                                  <p className="text-white text-sm">•••• •••• •••• 4242</p>
+                                  <p className="text-zinc-400 text-xs">Expires 12/24</p>
+                                </div>
                               </div>
+                              <button className="text-zinc-400 hover:text-white">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M3 6h18" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
                             </div>
-                            <button className="text-zinc-400 hover:text-white">
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 6h18" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
-                            </button>
-                          </div>
-                          <Button className="w-full bg-transparent border border-zinc-700 text-white hover:bg-zinc-800">
+                          ) : (
+                            <p className="text-zinc-400 text-sm">No payment method added</p>
+                          )}
+                          <Button 
+                            className="w-full bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
+                            onClick={() => {
+                              // TODO: Implement add payment method
+                              alert('Add payment method feature coming soon');
+                            }}
+                          >
                             + Add Payment Method
                           </Button>
                         </div>
@@ -2669,24 +2692,67 @@ When responding:
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-3">Billing History</h4>
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
-                            <div>
-                              <p className="text-white text-sm">Pro Plan - Monthly</p>
-                              <p className="text-zinc-400 text-xs">March 15, 2024</p>
+                          {userSubscription?.stripeSubscriptionId ? (
+                            <>
+                              <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                                <div>
+                                  <p className="text-white text-sm">Pro Plan - Monthly</p>
+                                  <p className="text-zinc-400 text-xs">March 15, 2024</p>
+                                </div>
+                                <div className="text-white">$19.99</div>
+                              </div>
+                              <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                                <div>
+                                  <p className="text-white text-sm">Pro Plan - Monthly</p>
+                                  <p className="text-zinc-400 text-xs">February 15, 2024</p>
+                                </div>
+                                <div className="text-white">$19.99</div>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-zinc-400 text-sm">No billing history available</p>
+                          )}
+                          <Button 
+                            className="w-full mt-3 bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
+                            onClick={() => {
+                              // TODO: Implement view all invoices
+                              alert('View all invoices feature coming soon');
+                            }}
+                          >
+                            View All Invoices
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Usage & Limits */}
+                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                        <h4 className="text-white font-semibold mb-3">Usage & Limits</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-zinc-300">Messages Today</span>
+                              <span className="text-zinc-400">{usageStats.messagesToday} / {userSubscription?.plan === 'pro' ? 'Unlimited' : '25'}</span>
                             </div>
-                            <div className="text-white">$19.99</div>
+                            <div className="w-full bg-zinc-700 rounded-full h-2">
+                              <div 
+                                className="bg-blue-500 h-2 rounded-full" 
+                                style={{ width: `${Math.min((usageStats.messagesToday / (userSubscription?.plan === 'pro' ? 100 : 25)) * 100, 100)}%` }}
+                              ></div>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
-                            <div>
-                              <p className="text-white text-sm">Pro Plan - Monthly</p>
-                              <p className="text-zinc-400 text-xs">February 15, 2024</p>
+                          <div>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-zinc-300">Files Uploaded</span>
+                              <span className="text-zinc-400">{usageStats.filesUploaded} / {userSubscription?.plan === 'pro' ? 'Unlimited' : '0'}</span>
                             </div>
-                            <div className="text-white">$19.99</div>
+                            <div className="w-full bg-zinc-700 rounded-full h-2">
+                              <div 
+                                className="bg-blue-500 h-2 rounded-full" 
+                                style={{ width: `${Math.min((usageStats.filesUploaded / (userSubscription?.plan === 'pro' ? 100 : 1)) * 100, 100)}%` }}
+                              ></div>
+                            </div>
                           </div>
                         </div>
-                        <Button className="w-full mt-3 bg-transparent border border-zinc-700 text-white hover:bg-zinc-800">
-                          View All Invoices
-                        </Button>
                       </div>
                     </div>
                   </div>
