@@ -438,6 +438,9 @@ export default function Dashboard() {
       text: '', 
       timestamp: Timestamp.now() 
     }]);
+    // Simulate sending the message
+    const event = new Event('submit', { bubbles: true, cancelable: true });
+    document.querySelector('form')?.dispatchEvent(event);
   };
 
   // Real-time conversations
