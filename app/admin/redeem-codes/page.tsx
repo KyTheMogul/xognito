@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { generateRedeemCodes } from '../../lib/redeemCode';
 import { useAuth } from '../../lib/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -38,11 +37,8 @@ export default function RedeemCodesAdmin() {
     if (!user || !isAdmin) return;
     setIsLoading(true);
     try {
-      const codes = await generateRedeemCodes(count, plan, expiresInDays);
-      setGeneratedCodes(codes);
-      
       if (email) {
-        await sendRedeemCodesEmail(email, codes, plan);
+        await sendRedeemCodesEmail(email, [], plan);
         setEmailSent(true);
       }
     } catch (error) {
