@@ -1011,6 +1011,8 @@ ${memoryContext}`
       if (subscriptionDoc.exists()) {
         const subscription = subscriptionDoc.data() as DocumentData;
         setUserSubscription(subscription as any);
+      } else {
+        setUserSubscription({ plan: 'free', isActive: true });
       }
     };
 
@@ -1780,7 +1782,7 @@ When responding:
             <div className="px-3 py-2 text-xs text-zinc-400">Current Plan</div>
             <div className="px-3 py-1 text-sm font-semibold text-white flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><circle cx="12" cy="12" r="10" /><path d="M8 12l2 2 4-4" /></svg>
-      {userSubscription?.plan === 'free' ? 'Free Plan' : `${userSubscription?.plan} Plan`}
+      {userSubscription?.plan ? `${userSubscription.plan} Plan` : 'Free Plan'}
             </div>
             <Button className="w-full justify-start bg-transparent hover:bg-white hover:text-black hover:fill-black text-white rounded-lg px-3 py-2 text-sm font-normal mt-2 flex items-center gap-2 transition-colors" variant="ghost" onClick={() => setSubscriptionOpen(true)}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-colors"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
