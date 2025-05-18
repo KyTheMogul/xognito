@@ -40,6 +40,7 @@ export async function POST(req: Request) {
         // Get the user ID and plan from the session metadata
         const userId = session.metadata?.userId;
         const plan = session.metadata?.plan;
+        const formattedPlan = plan === 'pro' ? 'Pro Plan' : plan === 'pro_plus' ? 'Pro Plus' : 'Free';
 
         if (!userId || !plan) {
           console.error('Missing userId or plan in session metadata');
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
         // Update user's subscription in Firebase
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
-          'subscription.plan': plan,
+          'subscription.plan': formattedPlan,
           'subscription.status': 'active', // Set to active immediately for successful purchases
           'subscription.startDate': Timestamp.fromDate(new Date(subscription.current_period_start * 1000)),
           'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
           'subscription.isActive': true
         });
 
-        console.log(`Updated subscription for user ${userId} to ${plan} plan with status active`);
+        console.log(`Updated subscription for user ${userId} to ${formattedPlan} plan with status active`);
         break;
       }
 
