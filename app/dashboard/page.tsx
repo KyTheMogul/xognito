@@ -185,8 +185,21 @@ function renderAIMessage(text: string) {
       
       if (listMatch) {
         const beforeList = text.slice(0, listMatch.index).trim();
-        const listItems = listMatch[1].split('\n').map(item => item.trim());
+        const listItems = listMatch[1].split('\n').map(item => item.trim()).filter(item => item.length > 0);
         const afterList = text.slice((listMatch.index || 0) + listMatch[0].length).trim();
+
+        // Generate a title from the content before the list
+        const generateTitle = (text: string) => {
+          // Remove any markdown formatting
+          const cleanText = text.replace(/\*\*/g, '').replace(/__/g, '');
+          // Get the last sentence or phrase before the list
+          const sentences = cleanText.split(/[.!?]/);
+          const lastSentence = sentences[sentences.length - 1].trim();
+          // If the last sentence is too long, take the first part
+          return lastSentence.length > 50 ? lastSentence.slice(0, 50) + '...' : lastSentence;
+        };
+
+        const containerTitle = beforeList ? generateTitle(beforeList) : 'List';
 
         return (
           <div className="space-y-4">
@@ -202,7 +215,7 @@ function renderAIMessage(text: string) {
                 }}
                 className="w-full px-4 py-2 bg-zinc-800/50 hover:bg-zinc-800 flex items-center justify-between text-left transition-colors"
               >
-                <span className="font-medium">View List</span>
+                <span className="font-medium">{containerTitle}</span>
                 <svg
                   className="w-5 h-5 transform transition-transform"
                   fill="none"
