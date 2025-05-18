@@ -13,7 +13,7 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 export async function POST(req: Request) {
   try {
     const body = await req.text();
-    const headersList = await headers();
+    const headersList = headers();
     const signature = headersList.get('stripe-signature')!;
 
     let event: Stripe.Event;
@@ -59,17 +59,17 @@ export async function POST(req: Request) {
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
           'subscription.plan': plan,
-          'subscription.status': subscription.status === 'active' ? 'active' : 'pending',
+          'subscription.status': 'active', // Set to active immediately for successful purchases
           'subscription.startDate': Timestamp.fromDate(new Date(subscription.current_period_start * 1000)),
           'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
           'subscription.stripeCustomerId': session.customer,
           'subscription.stripeSubscriptionId': session.subscription,
           'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
           'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null,
-          'subscription.isActive': subscription.status === 'active'
+          'subscription.isActive': true
         });
 
-        console.log(`Updated subscription for user ${userId} to ${plan} plan with status ${subscription.status}`);
+        console.log(`Updated subscription for user ${userId} to ${plan} plan with status active`);
         break;
       }
 
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         // Update subscription status in Firebase
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
-          'subscription.status': subscription.status,
+          'subscription.status': subscription.status === 'active' ? 'active' : 'pending',
           'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
           'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
           'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null,
