@@ -164,45 +164,35 @@ async function fetchDeepSeekResponseStream(
 // Helper to parse code blocks from AI response (triple backtick or indented)
 function renderAIMessage(text: string) {
   try {
-  // Regex to match code blocks: ```lang\ncode\n```
-  const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
-  let match = codeBlockRegex.exec(text);
-  if (match) {
-    // Only show the first code block and any text before it
-    const before = text.slice(0, match.index).trim();
-    const lang = match[1] || 'plaintext';
-    const code = match[2];
-    return <CodeBlock lang={lang} code={code} before={before} />;
-  }
-  // If no triple backtick code block, look for the first indented code block (4 spaces or tab)
-  const lines = text.split(/\r?\n/);
-  let inCode = false;
-  let codeLines: string[] = [];
-  let beforeLines: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^(    |\t)/.test(line)) {
-      if (!inCode) {
-        inCode = true;
-      }
-      codeLines.push(line.replace(/^(    |\t)/, ''));
-    } else {
-      if (!inCode) {
-        beforeLines.push(line);
-      } else {
-        // End of first code block
-        break;
-      }
+    // First, handle code blocks
+    const codeBlockRegex = /```([\w-]*)\n([\s\S]*?)```/g;
+    let match = codeBlockRegex.exec(text);
+    if (match) {
+      const before = text.slice(0, match.index).trim();
+      const lang = match[1] || 'plaintext';
+      const code = match[2];
+      return <CodeBlock lang={lang} code={code} before={before} />;
     }
-  }
-  if (codeLines.length > 0) {
-    return <CodeBlock lang="plaintext" code={codeLines.join('\n')} before={beforeLines.join('\n')} />;
-  }
-  // If no code block found, just return the text
-  return <span>{text}</span>;
+
+    // If no code block, format the text with proper spacing and list formatting
+    const formattedText = text
+      // Add line breaks between numbered lists
+      .replace(/(\d+\.\s+[^\n]+)(?=\n\d+\.)/g, '$1\n')
+      // Add line breaks between bullet points
+      .replace(/(\*\s+[^\n]+)(?=\n\*)/g, '$1\n')
+      // Add line breaks between paragraphs
+      .replace(/\n\n+/g, '\n\n')
+      // Format numbered lists with proper spacing
+      .replace(/(\d+\.\s+[^\n]+)/g, '<div class="mb-2">$1</div>')
+      // Format bullet points with proper spacing
+      .replace(/(\*\s+[^\n]+)/g, '<div class="mb-2">$1</div>')
+      // Add spacing between paragraphs
+      .replace(/\n/g, '<br />');
+
+    return <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formattedText }} />;
   } catch (error) {
     console.error("Error rendering AI message:", error);
-  return <span>{text}</span>;
+    return <span>{text}</span>;
   }
 }
 
