@@ -174,19 +174,69 @@ function renderAIMessage(text: string) {
       return <CodeBlock lang={lang} code={code} before={before} />;
     }
 
-    // If no code block, format the text with proper spacing and list formatting
+    // Check if the text contains a numbered list
+    const hasNumberedList = /\d+\.\s+[^\n]+/.test(text);
+    const hasBulletList = /\*\s+[^\n]+/.test(text);
+
+    if (hasNumberedList || hasBulletList) {
+      // Split the text into before list, list items, and after list
+      const listRegex = /((?:\d+\.|\*)\s+[^\n]+(?:\n(?:\d+\.|\*)\s+[^\n]+)*)/;
+      const listMatch = text.match(listRegex);
+      
+      if (listMatch) {
+        const beforeList = text.slice(0, listMatch.index).trim();
+        const listItems = listMatch[1].split('\n').map(item => item.trim());
+        const afterList = text.slice((listMatch.index || 0) + listMatch[0].length).trim();
+
+        return (
+          <div className="space-y-4">
+            {beforeList && <div className="whitespace-pre-wrap">{beforeList}</div>}
+            <div className="border border-zinc-700 rounded-lg overflow-hidden">
+              <button
+                onClick={(e) => {
+                  const container = (e.target as HTMLElement).nextElementSibling;
+                  if (container) {
+                    container.classList.toggle('hidden');
+                    (e.target as HTMLElement).classList.toggle('expanded');
+                  }
+                }}
+                className="w-full px-4 py-2 bg-zinc-800/50 hover:bg-zinc-800 flex items-center justify-between text-left transition-colors"
+              >
+                <span className="font-medium">View List</span>
+                <svg
+                  className="w-5 h-5 transform transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              <div className="hidden px-4 py-3 space-y-2">
+                {listItems.map((item, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <span className="text-zinc-400 mt-1">
+                      {item.startsWith('*') ? '•' : `${index + 1}.`}
+                    </span>
+                    <span>{item.replace(/^\d+\.\s+|\*\s+/, '')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {afterList && <div className="whitespace-pre-wrap">{afterList}</div>}
+          </div>
+        );
+      }
+    }
+
+    // If no list found, format the text with proper spacing
     const formattedText = text
-      // Add line breaks between numbered lists
-      .replace(/(\d+\.\s+[^\n]+)(?=\n\d+\.)/g, '$1\n')
-      // Add line breaks between bullet points
-      .replace(/(\*\s+[^\n]+)(?=\n\*)/g, '$1\n')
-      // Add line breaks between paragraphs
       .replace(/\n\n+/g, '\n\n')
-      // Format numbered lists with proper spacing
-      .replace(/(\d+\.\s+[^\n]+)/g, '<div class="mb-2">$1</div>')
-      // Format bullet points with proper spacing
-      .replace(/(\*\s+[^\n]+)/g, '<div class="mb-2">$1</div>')
-      // Add spacing between paragraphs
       .replace(/\n/g, '<br />');
 
     return <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formattedText }} />;
@@ -194,6 +244,20 @@ function renderAIMessage(text: string) {
     console.error("Error rendering AI message:", error);
     return <span>{text}</span>;
   }
+}
+
+// Add styles for the expandable container
+const styles = `
+  .expanded svg {
+    transform: rotate(180deg);
+  }
+`;
+
+// Add the styles to the document
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = styles;
+  document.head.appendChild(styleSheet);
 }
 
 // CodeBlock component with language label and copy button
