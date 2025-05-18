@@ -58,16 +58,15 @@ export async function POST(req: Request) {
         // Update user's subscription in Firebase
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
-          subscription: {
-            plan: plan,
-            status: subscription.status === 'active' ? 'active' : 'pending',
-            startDate: Timestamp.fromDate(new Date(subscription.current_period_start * 1000)),
-            endDate: Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
-            stripeCustomerId: session.customer,
-            stripeSubscriptionId: session.subscription,
-            cancelAtPeriodEnd: subscription.cancel_at_period_end,
-            trialEnd: subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null
-          }
+          'subscription.plan': plan,
+          'subscription.status': subscription.status === 'active' ? 'active' : 'pending',
+          'subscription.startDate': Timestamp.fromDate(new Date(subscription.current_period_start * 1000)),
+          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
+          'subscription.stripeCustomerId': session.customer,
+          'subscription.stripeSubscriptionId': session.subscription,
+          'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
+          'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null,
+          'subscription.isActive': subscription.status === 'active'
         });
 
         console.log(`Updated subscription for user ${userId} to ${plan} plan with status ${subscription.status}`);
@@ -95,7 +94,8 @@ export async function POST(req: Request) {
           'subscription.status': subscription.status,
           'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
           'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
-          'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null
+          'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null,
+          'subscription.isActive': subscription.status === 'active'
         });
 
         console.log(`Updated subscription status for user ${userId} to ${subscription.status}`);
@@ -119,9 +119,13 @@ export async function POST(req: Request) {
         // Update subscription status to cancelled in Firebase
         const userRef = doc(db, 'users', userId);
         await updateDoc(userRef, {
+          'subscription.plan': 'free',
           'subscription.status': 'cancelled',
           'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
-          'subscription.cancelAtPeriodEnd': true
+          'subscription.cancelAtPeriodEnd': true,
+          'subscription.isActive': false,
+          'subscription.stripeCustomerId': null,
+          'subscription.stripeSubscriptionId': null
         });
 
         console.log(`Marked subscription as cancelled for user ${userId}`);
