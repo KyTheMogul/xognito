@@ -47,13 +47,6 @@ export interface BillingSettings {
   startDate: Timestamp;
   nextBillingDate: Timestamp;
   trialEndsAt?: Timestamp;
-  paymentMethod?: {
-    id: string;
-    last4: string;
-    brand: string;
-    expMonth: number;
-    expYear: number;
-  };
   billingHistory: {
     id: string;
     amount: number;
@@ -61,6 +54,7 @@ export interface BillingSettings {
     status: 'succeeded' | 'failed' | 'pending';
     date: Timestamp;
     description: string;
+    invoiceUrl?: string;  // Added for Stripe invoice link
   }[];
   usage: {
     messagesToday: number;

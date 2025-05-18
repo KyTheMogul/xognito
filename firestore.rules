@@ -60,13 +60,6 @@ service cloud.firestore {
              data.startDate is timestamp &&
              data.nextBillingDate is timestamp &&
              (!('trialEndsAt' in data) || data.trialEndsAt is timestamp) &&
-             (!('paymentMethod' in data) || (
-               data.paymentMethod.id is string &&
-               data.paymentMethod.last4 is string &&
-               data.paymentMethod.brand is string &&
-               data.paymentMethod.expMonth is number &&
-               data.paymentMethod.expYear is number
-             )) &&
              data.billingHistory is list &&
              data.usage.messagesToday is number &&
              data.usage.filesUploaded is number &&
@@ -89,7 +82,8 @@ service cloud.firestore {
              entry.currency is string &&
              entry.status in ['succeeded', 'failed', 'pending'] &&
              entry.date is timestamp &&
-             entry.description is string;
+             entry.description is string &&
+             (!('invoiceUrl' in entry) || entry.invoiceUrl is string);
     }
 
     // Users collection
