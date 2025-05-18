@@ -326,7 +326,7 @@ export default function LandingPage() {
         className="max-w-5xl mx-auto w-full py-16 px-4"
       >
         <h2 className="text-2xl md:text-3xl font-bold mb-10 text-center">Compare Plans</h2>
-        <div className="flex flex-row gap-8 justify-center items-stretch mb-6 mt-20">
+        <div className="flex flex-col md:flex-row gap-8 justify-center items-center mb-6 mt-20">
           {/* Free Plan Card */}
           <motion.div
             ref={freeRef}
