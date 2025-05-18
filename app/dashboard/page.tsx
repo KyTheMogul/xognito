@@ -180,13 +180,19 @@ function renderAIMessage(text: string) {
 
     if (hasNumberedList || hasBulletList) {
       // Split the text into before list, list items, and after list
-      const listRegex = /((?:\d+\.|\*)\s+[^\n]+(?:\n(?:\d+\.|\*)\s+[^\n]+)*)/;
-      const listMatch = text.match(listRegex);
+      // Updated regex to better handle multi-line list items and complex formatting
+      const listRegex = /((?:\d+\.|\*)\s+[^\n]+(?:\n(?!\d+\.|\*)[^\n]*)*)/g;
+      const listMatches = Array.from(text.matchAll(listRegex));
       
-      if (listMatch) {
-        const beforeList = text.slice(0, listMatch.index).trim();
-        const listItems = listMatch[1].split('\n').map(item => item.trim()).filter(item => item.length > 0);
-        const afterList = text.slice((listMatch.index || 0) + listMatch[0].length).trim();
+      if (listMatches.length > 0) {
+        const firstMatch = listMatches[0];
+        const beforeList = text.slice(0, firstMatch.index).trim();
+        const listItems = listMatches.map(match => {
+          const item = match[1].trim();
+          // Clean up any extra newlines within the item
+          return item.replace(/\n(?!\d+\.|\*)/g, ' ').trim();
+        });
+        const afterList = text.slice((firstMatch.index || 0) + firstMatch[0].length).trim();
 
         // Generate a title from the content before the list
         const generateTitle = (text: string) => {
