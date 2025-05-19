@@ -8,5 +8,6 @@ export default function robots(): MetadataRoute.Robots {
       disallow: ['/private/', '/admin/'],
     },
     sitemap: 'https://xognito.com/sitemap.xml',
+    host: 'https://xognito.com',
   }
 } 
