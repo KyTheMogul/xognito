@@ -969,75 +969,7 @@ ${memoryContext}`
 
   useEffect(() => {
     console.log("[XloudID] Dashboard component mounted");
-    const handleAuth = async () => {
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get('token');
-      
-      if (token) {
-        console.log("[XloudID] Received token:", token.substring(0, 10) + "...");
-        try {
-          const userCredential = await signInWithCustomToken(auth, token);
-          const user = userCredential.user;
-          console.log("[XloudID] Successfully signed in user:", {
-            uid: user.uid,
-            email: user.email,
-            emailVerified: user.emailVerified
-          });
-
-          // Create user doc in Firestore if not exists
-          const userRef = doc(db, 'users', user.uid);
-          try {
-            const userSnap = await getDoc(userRef);
-            console.log("[XloudID] Checking if user document exists:", userSnap.exists());
-            
-            if (!userSnap.exists()) {
-              console.log("[XloudID] Creating new user document");
-              const userData = {
-                email: user.email,
-                createdAt: serverTimestamp(),
-                lastLogin: serverTimestamp(),
-                emailVerified: user.emailVerified,
-                displayName: user.displayName || null,
-                photoURL: user.photoURL || null
-              };
-              console.log("[XloudID] User data to be saved:", userData);
-              
-              await setDoc(userRef, userData);
-              console.log("[XloudID] Successfully created user document");
-
-              // Initialize user settings
-              await initializeUserSettings(user.uid);
-              console.log("[XloudID] Successfully initialized user settings");
-            } else {
-              // Update last login time
-              await updateDoc(userRef, { 
-                lastLogin: serverTimestamp(),
-                emailVerified: user.emailVerified,
-                displayName: user.displayName || null,
-                photoURL: user.photoURL || null
-              });
-              console.log("[XloudID] Updated existing user document");
-            }
-          } catch (firestoreError) {
-            console.error("[XloudID] Firestore operation error:", {
-              code: (firestoreError as any).code,
-              message: (firestoreError as any).message,
-              stack: (firestoreError as any).stack
-            });
-          }
-
-          // Clean up URL
-          url.searchParams.delete('token');
-          window.history.replaceState({}, '', url.toString());
-        } catch (error) {
-          console.error("[XloudID] Authentication error:", error);
-          // Redirect to landing page on error
-          window.location.href = '/';
-        }
-      }
-    };
-
-    handleAuth();
+    // Remove the handleAuth function since we handle auth in the landing page
   }, []);
 
   const handleNewMemory = (memory: NotificationMemory) => {

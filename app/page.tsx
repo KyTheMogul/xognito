@@ -8,7 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { initializeUserSettings } from '@/lib/settings';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LandingPage() {
   console.log("[XloudID] Landing page component mounted");
@@ -54,128 +56,10 @@ export default function LandingPage() {
   const pricingInView = useInView(pricingRef, { once: true });
   const whyInView = useInView(whyRef, { once: true });
   const joinNowInView = useInView(joinNowRef, { once: true });
+  const { handleAuth } = useAuth();
 
   useEffect(() => {
     console.log("[XloudID] useEffect triggered");
-    const handleAuth = async () => {
-      console.log("[XloudID] handleAuth started");
-      if (typeof window !== 'undefined') {
-        console.log("[XloudID] Window is defined");
-        const url = new URL(window.location.href);
-        const token = url.searchParams.get('token');
-        console.log("[XloudID] Current URL:", window.location.href);
-        console.log("[XloudID] Token from URL:", token ? "Present" : "Not present");
-        const redirect = url.searchParams.get('redirect');
-        const ALLOWED_REDIRECT_DOMAINS = [
-          "https://xognito.com",
-          "https://www.xognito.com",
-          "https://xognito.vercel.app"
-        ];
-        let validatedRedirectUrl = "https://xognito.com/dashboard";
-        if (redirect) {
-          try {
-            const redirectUrl = new URL(redirect);
-            if (ALLOWED_REDIRECT_DOMAINS.includes(redirectUrl.origin)) {
-              validatedRedirectUrl = redirect;
-            }
-          } catch (e) {
-            // Allow relative paths (e.g., /dashboard)
-            if (redirect.startsWith("/")) {
-              validatedRedirectUrl = redirect;
-            }
-          }
-        }
-        if (token) {
-          console.log("[XloudID] Received token:", token.substring(0, 10) + "...");
-          try {
-            const userCredential = await signInWithCustomToken(auth, token);
-            const user = userCredential.user;
-            console.log("[XloudID] Successfully signed in user:", {
-              uid: user.uid,
-              email: user.email,
-              emailVerified: user.emailVerified
-            });
-
-            // Create user doc in Firestore if not exists
-            const userRef = doc(db, 'users', user.uid);
-            try {
-              const userSnap = await getDoc(userRef);
-              console.log("[XloudID] Checking if user document exists:", userSnap.exists());
-              
-              if (!userSnap.exists()) {
-                console.log("[XloudID] Creating new user document");
-                const userData = {
-                  email: user.email,
-                  createdAt: new Date(),
-                  lastLogin: new Date(),
-                  emailVerified: user.emailVerified,
-                  displayName: user.displayName || null,
-                  photoURL: user.photoURL || null
-                };
-                console.log("[XloudID] User data to be saved:", userData);
-                
-                await setDoc(userRef, userData);
-                console.log("[XloudID] Successfully created user document");
-              } else {
-                // Update last login time
-                await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
-                console.log("[XloudID] Updated existing user document");
-              }
-            } catch (firestoreError) {
-              console.error("[XloudID] Firestore operation error:", firestoreError);
-              // Continue with redirect even if Firestore operation fails
-            }
-
-            // Clean up URL and redirect
-            url.searchParams.delete('token');
-            window.history.replaceState({}, document.title, url.pathname + url.search);
-            console.log("[XloudID] About to redirect to:", validatedRedirectUrl);
-            
-            // Store current URL and token info in localStorage
-            localStorage.setItem('xloudid_auth_info', JSON.stringify({
-              timestamp: new Date().toISOString(),
-              token: token.substring(0, 10) + "...",
-              redirectUrl: validatedRedirectUrl
-            }));
-            
-            // Add a small delay before redirect to ensure logs are visible
-            setTimeout(() => {
-              window.location.href = validatedRedirectUrl;
-            }, 1000);
-          } catch (error) {
-            const authError = error as Error;
-            console.error("[XloudID] Authentication error:", {
-              code: authError.name,
-              message: authError.message,
-              stack: authError.stack
-            });
-            // Store error logs
-            localStorage.setItem('xloudid_error', JSON.stringify({
-              code: authError.name,
-              message: authError.message,
-              stack: authError.stack
-            }));
-          }
-        } else {
-          console.log("[XloudID] No token found in URL");
-          // Check if we're on the dashboard page
-          if (window.location.pathname === '/dashboard') {
-            console.log("[XloudID] On dashboard page, checking for stored logs");
-            const storedLogs = localStorage.getItem('xloudid_logs');
-            const storedError = localStorage.getItem('xloudid_error');
-            if (storedLogs) {
-              console.log("[XloudID] Previous logs:", JSON.parse(storedLogs));
-              localStorage.removeItem('xloudid_logs');
-            }
-            if (storedError) {
-              console.error("[XloudID] Previous error:", JSON.parse(storedError));
-              localStorage.removeItem('xloudid_error');
-            }
-          }
-        }
-      }
-    };
-
     handleAuth();
 
     const eventDate = new Date();
@@ -235,12 +119,19 @@ export default function LandingPage() {
     if (e.target.value.length > 0) {
       // Redirect to XloudID auth with proper parameters
       const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
-      window.location.href = `https://auth.xloudone.com/signup?email=${encodeURIComponent(e.target.value)}&redirect=${redirectUrl}`;
+      const email = encodeURIComponent(e.target.value);
+      window.location.href = `https://auth.xloudone.com/signup?email=${email}&redirect=${redirectUrl}`;
     }
   };
 
   const handleInputClick = () => {
-    window.location.href = 'https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard';
+    if (inputValue.length > 0) {
+      const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
+      const email = encodeURIComponent(inputValue);
+      window.location.href = `https://auth.xloudone.com/signup?email=${email}&redirect=${redirectUrl}`;
+    } else {
+      window.location.href = 'https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard';
+    }
   };
 
   return (

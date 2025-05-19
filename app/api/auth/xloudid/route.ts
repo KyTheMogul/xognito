@@ -69,14 +69,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // For now, we'll use the token directly as the user ID
-    // This is temporary until we have proper XloudID API integration
-    const userId = `xloudid_${token.substring(0, 20)}`;
-    console.log("[XloudID API] Using temporary user ID:", userId);
-
     // Create a custom token for our Firebase project
     console.log("[XloudID API] Creating Firebase custom token");
-    const firebaseToken = await auth().createCustomToken(userId, {
+    const firebaseToken = await auth().createCustomToken(token, {
       provider: 'xloudid',
       originalToken: token
     });
