@@ -16,7 +16,13 @@ export const metadata: Metadata = {
   title: "Xognito",
   description: "Your AI-powered memory companion",
   icons: {
-    icon: '/xognito.ico',
+    icon: [
+      { url: '/xognito.ico' },
+      { url: '/xognito.ico', sizes: '32x32', type: 'image/x-icon' },
+      { url: '/xognito.ico', sizes: '16x16', type: 'image/x-icon' },
+    ],
+    shortcut: '/xognito.ico',
+    apple: '/xognito.ico',
   },
 };
 
@@ -27,6 +33,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/xognito.ico" sizes="any" />
+        <link rel="icon" href="/xognito.ico" type="image/x-icon" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
