@@ -404,11 +404,17 @@ export default function Dashboard() {
     stripeSubscriptionId?: string;
     startDate?: Timestamp;
     nextBillingDate?: Timestamp;
-    addedBy?: string;
-    sharedUsers?: string[];
-    seatsUsed?: number;
-    seatsAllowed?: number;
     trialEndsAt?: Timestamp;
+    status: 'active' | 'canceled' | 'past_due' | 'trialing';
+    billingHistory: {
+      id: string;
+      amount: number;
+      currency: string;
+      status: 'succeeded' | 'failed' | 'pending';
+      date: Timestamp;
+      description: string;
+      invoiceUrl?: string;
+    }[];
     isInvitedUser?: boolean;
     inviterEmail?: string;
     billingGroup?: string;
@@ -1088,19 +1094,43 @@ ${memoryContext}`
     if (!user) return;
 
     const fetchSubscription = async () => {
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        const data = userDoc.data();
+      try {
+        const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+        const billingDoc = await getDoc(billingRef);
+        
+        if (billingDoc.exists()) {
+          const data = billingDoc.data();
+          setUserSubscription({
+            plan: data.plan,
+            isActive: data.status === 'active' || data.status === 'trialing',
+            stripeCustomerId: data.stripeCustomerId,
+            stripeSubscriptionId: data.stripeSubscriptionId,
+            startDate: data.startDate,
+            nextBillingDate: data.nextBillingDate,
+            trialEndsAt: data.trialEndsAt,
+            status: data.status,
+            billingHistory: data.billingHistory || [],
+            isInvitedUser: data.isInvitedUser,
+            inviterEmail: data.inviterEmail,
+            billingGroup: data.billingGroup,
+            xloudId: data.xloudId
+          });
+        } else {
+          setUserSubscription({
+            plan: 'free',
+            isActive: false,
+            status: 'canceled',
+            billingHistory: []
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching subscription:', error);
         setUserSubscription({
-          plan: data.selectedPlan || 'free',
-          isActive: data.subscriptionStatus === 'active',
-          ...data
+          plan: 'free',
+          isActive: false,
+          status: 'canceled',
+          billingHistory: []
         });
-        console.log('Loaded user subscription from user doc:', data);
-      } else {
-        setUserSubscription({ plan: 'free', isActive: false });
-        console.log('No user doc found, defaulting to free plan');
       }
     };
 
@@ -2608,153 +2638,75 @@ When responding:
                     <div className="space-y-4">
                       {/* Current Plan */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                        <h4 className="text-white font-semibold mb-2">Current Plan</h4>
+                        <h4 className="text-white font-semibold mb-3">Current Plan</h4>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-zinc-300 text-sm capitalize">{userSubscription?.plan || 'Free'} Plan</p>
-                            {userSubscription?.isInvitedUser && (
-                              <div className="mt-2 space-y-1">
-                                <p className="text-zinc-400 text-xs">
-                                  Invited by: {userSubscription.inviterEmail}
-                                </p>
-                                <p className="text-zinc-400 text-xs">
-                                  Billing Group: {userSubscription.billingGroup}
-                                </p>
-                                <p className="text-zinc-400 text-xs">
-                                  XloudID: {userSubscription.xloudId}
-                                </p>
-                              </div>
-                            )}
-                            {userSubscription?.nextBillingDate && (
-                              <p className="text-zinc-400 text-xs mt-1">
-                                Next billing date: {userSubscription.nextBillingDate.toDate().toLocaleDateString()}
-                              </p>
-                            )}
-                            {userSubscription?.trialEndsAt && (
-                              <p className="text-zinc-400 text-xs mt-1">
-                                Trial ends: {userSubscription.trialEndsAt.toDate().toLocaleDateString()}
-                              </p>
-                            )}
-                            {userSubscription?.startDate && (
-                              <p className="text-zinc-400 text-xs mt-1">
-                                Subscription started: {userSubscription.startDate.toDate().toLocaleDateString()}
-                              </p>
-                            )}
+                            <p className="text-white text-lg font-medium capitalize">{userSubscription?.plan || 'Free'}</p>
+                            <p className="text-zinc-400 text-sm">
+                              {userSubscription?.status === 'active' ? 'Active' : 
+                               userSubscription?.status === 'trialing' ? 'Trial' : 
+                               userSubscription?.status === 'past_due' ? 'Past Due' : 'Inactive'}
+                            </p>
                           </div>
-                          <Button
-                            className="bg-white text-black hover:bg-zinc-100"
-                            onClick={() => setSubscriptionOpen(true)}
-                          >
-                            Change Plan
-                          </Button>
+                          {userSubscription?.plan !== 'free' && (
+                            <Button
+                              className="bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
+                              onClick={() => {
+                                // Open Stripe Customer Portal
+                                window.open('https://billing.stripe.com/p/login/test', '_blank');
+                              }}
+                            >
+                              Manage Subscription
+                            </Button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Payment Methods */}
+                      {/* Usage Stats */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                        <h4 className="text-white font-semibold mb-3">Payment Methods</h4>
-                        <div className="space-y-3">
-                          {userSubscription?.stripeCustomerId ? (
-                            <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
-                              <div className="flex items-center gap-3">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-400">
-                                  <rect x="1" y="4" width="22" height="16" rx="2" />
-                                  <line x1="1" y1="10" x2="23" y2="10" />
-                                </svg>
-                                <div>
-                                  <p className="text-white text-sm">Payment method managed by Stripe</p>
-                                  <p className="text-zinc-400 text-xs">Secure payment processing</p>
-                                </div>
-                              </div>
-                              <Button
-                                className="bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
-                                onClick={() => {
-                                  // Open Stripe Customer Portal
-                                  window.open('https://billing.stripe.com/p/login/test', '_blank');
-                                }}
-                              >
-                                Manage in Stripe
-                              </Button>
-                            </div>
-                          ) : (
-                            <p className="text-zinc-400 text-sm">No payment method added</p>
-                          )}
-                          <Button 
-                            className="w-full bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
-                            onClick={() => {
-                              // TODO: Implement add payment method
-                              alert('Add payment method feature coming soon');
-                            }}
-                          >
-                            + Add Payment Method
-                          </Button>
+                        <h4 className="text-white font-semibold mb-3">Usage This Month</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-zinc-900/50 rounded-lg p-3">
+                            <p className="text-zinc-400 text-sm">Messages</p>
+                            <p className="text-white text-lg font-medium">{usageStats?.messagesToday || 0}</p>
+                          </div>
+                          <div className="bg-zinc-900/50 rounded-lg p-3">
+                            <p className="text-zinc-400 text-sm">Files Uploaded</p>
+                            <p className="text-white text-lg font-medium">{usageStats?.filesUploaded || 0}</p>
+                          </div>
                         </div>
                       </div>
 
                       {/* Billing History */}
                       <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
                         <h4 className="text-white font-semibold mb-3">Billing History</h4>
-                        <div className="space-y-2">
-                          {userSubscription?.stripeSubscriptionId ? (
-                            <>
-                              <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
+                        <div className="space-y-3">
+                          {userSubscription?.billingHistory && userSubscription.billingHistory.length > 0 ? (
+                            userSubscription.billingHistory.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
                                 <div>
-                                  <p className="text-white text-sm">Pro Plan - Monthly</p>
-                                  <p className="text-zinc-400 text-xs">March 15, 2024</p>
+                                  <p className="text-white text-sm">{item.description}</p>
+                                  <p className="text-zinc-400 text-xs">
+                                    {new Date(item.date.toDate()).toLocaleDateString()}
+                                  </p>
                                 </div>
-                                <div className="text-white">$19.99</div>
-                              </div>
-                              <div className="flex items-center justify-between p-3 bg-zinc-900/50 rounded-lg border border-zinc-700">
-                                <div>
-                                  <p className="text-white text-sm">Pro Plan - Monthly</p>
-                                  <p className="text-zinc-400 text-xs">February 15, 2024</p>
+                                <div className="text-right">
+                                  <p className="text-white text-sm">
+                                    ${item.amount.toFixed(2)} {item.currency.toUpperCase()}
+                                  </p>
+                                  <p className={`text-xs ${
+                                    item.status === 'succeeded' ? 'text-green-400' :
+                                    item.status === 'failed' ? 'text-red-400' :
+                                    'text-yellow-400'
+                                  }`}>
+                                    {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                                  </p>
                                 </div>
-                                <div className="text-white">$19.99</div>
                               </div>
-                            </>
+                            ))
                           ) : (
                             <p className="text-zinc-400 text-sm">No billing history available</p>
                           )}
-                          <Button 
-                            className="w-full mt-3 bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
-                            onClick={() => {
-                              // TODO: Implement view all invoices
-                              alert('View all invoices feature coming soon');
-                            }}
-                          >
-                            View All Invoices
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Usage & Limits */}
-                      <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
-                        <h4 className="text-white font-semibold mb-3">Usage & Limits</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-zinc-300">Messages Today</span>
-                              <span className="text-zinc-400">{usageStats.messagesToday} / {userSubscription?.plan === 'pro' ? 'Unlimited' : '25'}</span>
-                            </div>
-                            <div className="w-full bg-zinc-700 rounded-full h-2">
-                              <div 
-                                className="bg-blue-500 h-2 rounded-full" 
-                                style={{ width: `${Math.min((usageStats.messagesToday / (userSubscription?.plan === 'pro' ? 100 : 25)) * 100, 100)}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-zinc-300">Files Uploaded</span>
-                              <span className="text-zinc-400">{usageStats.filesUploaded} / {userSubscription?.plan === 'pro' ? 'Unlimited' : '0'}</span>
-                            </div>
-                            <div className="w-full bg-zinc-700 rounded-full h-2">
-                              <div 
-                                className="bg-blue-500 h-2 rounded-full" 
-                                style={{ width: `${Math.min((usageStats.filesUploaded / (userSubscription?.plan === 'pro' ? 100 : 1)) * 100, 100)}%` }}
-                              ></div>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     </div>
