@@ -117,15 +117,15 @@ export default function LandingPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     if (e.target.value.length > 0) {
-      // Redirect to XloudID auth
+      // Redirect to XloudID auth with proper redirect URL
       const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
-      window.location.href = `https://auth.xloudone.com/signup?redirect=${redirectUrl}`;
+      window.location.href = `https://auth.xloudone.com/signup?redirect=${redirectUrl}&app=xognito`;
     }
   };
 
   const handleInputClick = () => {
     const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
-    window.location.href = `https://auth.xloudone.com/signup?redirect=${redirectUrl}`;
+    window.location.href = `https://auth.xloudone.com/signup?redirect=${redirectUrl}&app=xognito`;
   };
 
   return (
@@ -144,8 +144,8 @@ export default function LandingPage() {
           <a href="#why" className="hover:text-zinc-300 transition-colors">Why Xognito?</a>
         </nav>
         <div className="flex items-center gap-3">
-          <a href="https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard" target="_blank" rel="noopener noreferrer"><Button variant="ghost" className="text-white border border-white/20 bg-transparent hover:bg-white/10 hover:text-white rounded-full px-4 py-1.5 text-sm">Try Free</Button></a>
-          <a href="https://auth.xloudone.com/login?redirect=https://xognito.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white cursor-pointer text-sm font-medium">Log In</a>
+          <a href={`https://auth.xloudone.com/signup?redirect=${encodeURIComponent('https://xognito.com/dashboard')}&app=xognito`} target="_blank" rel="noopener noreferrer"><Button variant="ghost" className="text-white border border-white/20 bg-transparent hover:bg-white/10 hover:text-white rounded-full px-4 py-1.5 text-sm">Try Free</Button></a>
+          <a href={`https://auth.xloudone.com/login?redirect=${encodeURIComponent('https://xognito.com/dashboard')}&app=xognito`} target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white cursor-pointer text-sm font-medium">Log In</a>
         </div>
       </header>
 

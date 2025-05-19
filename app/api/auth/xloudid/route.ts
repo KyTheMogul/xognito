@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       email: decodedToken.email
     });
 
-    // Create or get Firebase user
+    // Create or get Firebase user using XloudID token as UID
     let firebaseUser;
     try {
       firebaseUser = await auth().getUser(decodedToken.uid);
@@ -116,11 +116,21 @@ export async function POST(request: Request) {
     console.log("[XloudID API] Creating Firebase custom token");
     const firebaseToken = await auth().createCustomToken(firebaseUser.uid, {
       provider: 'xloudid',
-      originalToken: token
+      originalToken: token,
+      xloudidUid: decodedToken.uid
     });
     console.log("[XloudID API] Firebase token created successfully");
 
-    return NextResponse.json({ firebaseToken });
+    return NextResponse.json({ 
+      firebaseToken,
+      user: {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+        emailVerified: firebaseUser.emailVerified
+      }
+    });
   } catch (error: any) {
     console.error("[XloudID API] Token exchange error:", {
       name: error.name,
