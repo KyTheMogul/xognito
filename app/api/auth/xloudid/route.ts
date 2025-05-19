@@ -10,12 +10,14 @@ const requiredEnvVars = {
   FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
   FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
   FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+  XLOUDID_API_KEY: process.env.XLOUDID_API_KEY,
 };
 
 console.log("[XloudID API] Environment check:", {
   hasProjectId: !!requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID,
   hasClientEmail: !!requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL,
   hasPrivateKey: !!requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY,
+  hasXloudidApiKey: !!requiredEnvVars.XLOUDID_API_KEY,
   deploymentEnv: process.env.NODE_ENV,
   vercelEnv: process.env.VERCEL_ENV,
 });
@@ -29,7 +31,7 @@ if (missingVars.length > 0) {
   throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
 }
 
-// Initialize Firebase Admin if not already initialized
+// Initialize Firebase Admin for Xognito
 if (!getApps().length) {
   try {
     console.log("[XloudID API] Initializing Firebase Admin with config:", {
@@ -69,27 +71,42 @@ export async function POST(request: Request) {
       );
     }
 
-    // Decode the Firebase Admin SDK token
-    console.log("[XloudID API] Decoding Firebase Admin SDK token");
-    const decodedToken = await auth().verifyIdToken(token);
-    console.log("[XloudID API] Token decoded:", {
-      uid: decodedToken.uid,
-      email: decodedToken.email
+    // Verify token with XloudID API
+    console.log("[XloudID API] Verifying token with XloudID API");
+    const verifyResponse = await fetch('https://api.xloudone.com/v1/auth/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.XLOUDID_API_KEY}`,
+      },
+      body: JSON.stringify({ token }),
     });
 
-    // Create or get Firebase user using XloudID token as UID
+    if (!verifyResponse.ok) {
+      const errorData = await verifyResponse.json();
+      console.error("[XloudID API] Token verification failed:", errorData);
+      throw new Error(errorData.message || 'Failed to verify token');
+    }
+
+    const { user: xloudidUser } = await verifyResponse.json();
+    console.log("[XloudID API] Token verified, got user:", {
+      uid: xloudidUser.uid,
+      email: xloudidUser.email
+    });
+
+    // Create or get Firebase user in Xognito
     let firebaseUser;
     try {
-      firebaseUser = await auth().getUser(decodedToken.uid);
+      firebaseUser = await auth().getUser(xloudidUser.uid);
       console.log("[XloudID API] Existing Firebase user found");
     } catch (error) {
       console.log("[XloudID API] Creating new Firebase user");
       firebaseUser = await auth().createUser({
-        uid: decodedToken.uid,
-        email: decodedToken.email,
-        emailVerified: decodedToken.email_verified || false,
-        displayName: decodedToken.name || null,
-        photoURL: decodedToken.picture || null
+        uid: xloudidUser.uid,
+        email: xloudidUser.email,
+        emailVerified: xloudidUser.emailVerified,
+        displayName: xloudidUser.displayName,
+        photoURL: xloudidUser.photoURL
       });
 
       // Create user profile in Firestore
@@ -102,7 +119,7 @@ export async function POST(request: Request) {
         emailVerified: firebaseUser.emailVerified,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        xloudidUid: decodedToken.uid,
+        xloudidUid: xloudidUser.uid,
         settings: {
           theme: 'dark',
           notifications: true,
@@ -116,8 +133,7 @@ export async function POST(request: Request) {
     console.log("[XloudID API] Creating Firebase custom token");
     const firebaseToken = await auth().createCustomToken(firebaseUser.uid, {
       provider: 'xloudid',
-      originalToken: token,
-      xloudidUid: decodedToken.uid
+      xloudidUid: xloudidUser.uid
     });
     console.log("[XloudID API] Firebase token created successfully");
 
