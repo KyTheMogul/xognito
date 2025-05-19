@@ -117,21 +117,15 @@ export default function LandingPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     if (e.target.value.length > 0) {
-      // Redirect to XloudID auth with proper parameters
+      // Redirect to XloudID auth
       const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
-      const email = encodeURIComponent(e.target.value);
-      window.location.href = `https://auth.xloudone.com/signup?email=${email}&redirect=${redirectUrl}`;
+      window.location.href = `https://auth.xloudone.com/signup?redirect=${redirectUrl}`;
     }
   };
 
   const handleInputClick = () => {
-    if (inputValue.length > 0) {
-      const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
-      const email = encodeURIComponent(inputValue);
-      window.location.href = `https://auth.xloudone.com/signup?email=${email}&redirect=${redirectUrl}`;
-    } else {
-      window.location.href = 'https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard';
-    }
+    const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
+    window.location.href = `https://auth.xloudone.com/signup?redirect=${redirectUrl}`;
   };
 
   return (

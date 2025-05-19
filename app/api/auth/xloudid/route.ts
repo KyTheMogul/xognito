@@ -69,9 +69,45 @@ export async function POST(request: Request) {
       );
     }
 
+    // Verify the XloudID token and get user info
+    console.log("[XloudID API] Verifying XloudID token");
+    const xloudidResponse = await fetch('https://auth.xloudone.com/api/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!xloudidResponse.ok) {
+      throw new Error('Failed to verify XloudID token');
+    }
+
+    const xloudidUser = await xloudidResponse.json();
+    console.log("[XloudID API] XloudID user info received:", {
+      uid: xloudidUser.uid,
+      email: xloudidUser.email
+    });
+
+    // Create or get Firebase user
+    let firebaseUser;
+    try {
+      firebaseUser = await auth().getUser(xloudidUser.uid);
+      console.log("[XloudID API] Existing Firebase user found");
+    } catch (error) {
+      console.log("[XloudID API] Creating new Firebase user");
+      firebaseUser = await auth().createUser({
+        uid: xloudidUser.uid,
+        email: xloudidUser.email,
+        emailVerified: xloudidUser.emailVerified,
+        displayName: xloudidUser.displayName,
+        photoURL: xloudidUser.photoURL
+      });
+    }
+
     // Create a custom token for our Firebase project
     console.log("[XloudID API] Creating Firebase custom token");
-    const firebaseToken = await auth().createCustomToken(token, {
+    const firebaseToken = await auth().createCustomToken(firebaseUser.uid, {
       provider: 'xloudid',
       originalToken: token
     });
