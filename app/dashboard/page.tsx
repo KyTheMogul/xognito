@@ -1036,8 +1036,54 @@ ${memoryContext}`
                 };
                 console.log("[XloudID] User data to be saved:", userData);
                 
+                // Create user document
                 await setDoc(userRef, userData);
                 console.log("[XloudID] Successfully created user document");
+
+                // Initialize user settings
+                const settingsRef = doc(db, 'users', user.uid, 'settings', 'user');
+                const defaultSettings = {
+                  theme: 'system',
+                  notifications: {
+                    email: true,
+                    push: true,
+                    weeklyDigest: false,
+                    groupRequests: true,
+                  },
+                  ai: {
+                    model: 'default',
+                    temperature: 0.7,
+                    maxTokens: 2000,
+                  },
+                  memory: {
+                    enabled: true,
+                    retentionDays: 30,
+                    autoArchive: true,
+                  },
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+                await setDoc(settingsRef, defaultSettings);
+                console.log("[XloudID] Successfully initialized user settings");
+
+                // Initialize billing settings
+                const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+                const defaultBilling = {
+                  plan: 'free',
+                  status: 'active',
+                  startDate: new Date(),
+                  nextBillingDate: new Date(),
+                  billingHistory: [],
+                  usage: {
+                    messagesToday: 0,
+                    filesUploaded: 0,
+                    lastReset: new Date(),
+                  },
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+                await setDoc(billingRef, defaultBilling);
+                console.log("[XloudID] Successfully initialized billing settings");
               } else {
                 // Update last login time
                 await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
