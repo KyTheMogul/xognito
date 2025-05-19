@@ -18,7 +18,16 @@ export function middleware(request: NextRequest) {
 
   // If there's a token and we're on a public path, redirect to dashboard
   if (token && isPublicPath) {
-    return NextResponse.redirect(new URL(`/dashboard?token=${token}`, request.url));
+    const dashboardUrl = new URL('/dashboard', request.url);
+    dashboardUrl.searchParams.set('token', token);
+    return NextResponse.redirect(dashboardUrl);
+  }
+
+  // For dashboard requests, ensure the token is preserved
+  if (path === '/dashboard' && token) {
+    const response = NextResponse.next();
+    response.headers.set('x-auth-token', token);
+    return response;
   }
 
   return NextResponse.next();

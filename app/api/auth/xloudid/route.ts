@@ -91,6 +91,25 @@ export async function POST(request: Request) {
         displayName: decodedToken.name || null,
         photoURL: decodedToken.picture || null
       });
+
+      // Create user profile in Firestore
+      console.log("[XloudID API] Creating user profile in Firestore");
+      await adminDb.collection('users').doc(firebaseUser.uid).set({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+        emailVerified: firebaseUser.emailVerified,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        xloudidUid: decodedToken.uid,
+        settings: {
+          theme: 'dark',
+          notifications: true,
+          language: 'en'
+        }
+      });
+      console.log("[XloudID API] User profile created successfully");
     }
 
     // Create a custom token for our Firebase project

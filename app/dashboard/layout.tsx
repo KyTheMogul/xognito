@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function DashboardLayout({
@@ -8,11 +8,24 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { handleAuth } = useAuth();
+  const { handleAuth, isLoading } = useAuth();
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    handleAuth();
+    const init = async () => {
+      await handleAuth();
+      setIsInitialized(true);
+    };
+    init();
   }, [handleAuth]);
+
+  if (!isInitialized || isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black">
