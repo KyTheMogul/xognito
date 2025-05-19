@@ -14,7 +14,62 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Xognito",
-  description: "Your AI-powered memory companion",
+  description: "Your AI-powered memory companion that helps you remember, organize, and recall your thoughts and experiences.",
+  keywords: ["AI", "memory", "productivity", "organization", "personal assistant", "cognitive enhancement"],
+  authors: [{ name: "Xognito Team" }],
+  creator: "Xognito",
+  publisher: "Xognito",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL('https://xognito.com'),
+  alternates: {
+    canonical: '/',
+    types: {
+      'application/rss+xml': [
+        {
+          url: '/sitemap.xml',
+          title: 'Xognito Sitemap',
+        },
+      ],
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://xognito.com',
+    title: 'Xognito - Your AI Memory Companion',
+    description: 'Enhance your memory and productivity with Xognito, your AI-powered personal memory assistant.',
+    siteName: 'Xognito',
+    images: [
+      {
+        url: '/XognitoLogoFull.png',
+        width: 1200,
+        height: 630,
+        alt: 'Xognito Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Xognito - Your AI Memory Companion',
+    description: 'Enhance your memory and productivity with Xognito, your AI-powered personal memory assistant.',
+    creator: '@xognito',
+    images: ['/XognitoLogoFull.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   icons: {
     icon: [
       { url: '/xognito.ico' },
@@ -24,6 +79,15 @@ export const metadata: Metadata = {
     shortcut: '/xognito.ico',
     apple: '/xognito.ico',
   },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+  },
+  verification: {
+    google: 'your-google-site-verification', // Add your Google verification code
+  },
+  category: 'technology',
 };
 
 export default function RootLayout({
