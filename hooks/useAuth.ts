@@ -84,7 +84,8 @@ export function useAuth() {
             emailVerified: user.emailVerified,
             displayName: user.displayName || null,
             photoURL: user.photoURL || null,
-            provider: 'xloudid'
+            provider: 'xloudid',
+            xloudidUid: user.uid
           };
           console.log("[XloudID] User data to be saved:", userData);
           

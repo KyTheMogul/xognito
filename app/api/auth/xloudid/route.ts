@@ -69,39 +69,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify the XloudID token and get user info
-    console.log("[XloudID API] Verifying XloudID token");
-    const xloudidResponse = await fetch('https://auth.xloudone.com/api/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (!xloudidResponse.ok) {
-      throw new Error('Failed to verify XloudID token');
-    }
-
-    const xloudidUser = await xloudidResponse.json();
-    console.log("[XloudID API] XloudID user info received:", {
-      uid: xloudidUser.uid,
-      email: xloudidUser.email
+    // Decode the Firebase Admin SDK token
+    console.log("[XloudID API] Decoding Firebase Admin SDK token");
+    const decodedToken = await auth().verifyIdToken(token);
+    console.log("[XloudID API] Token decoded:", {
+      uid: decodedToken.uid,
+      email: decodedToken.email
     });
 
     // Create or get Firebase user
     let firebaseUser;
     try {
-      firebaseUser = await auth().getUser(xloudidUser.uid);
+      firebaseUser = await auth().getUser(decodedToken.uid);
       console.log("[XloudID API] Existing Firebase user found");
     } catch (error) {
       console.log("[XloudID API] Creating new Firebase user");
       firebaseUser = await auth().createUser({
-        uid: xloudidUser.uid,
-        email: xloudidUser.email,
-        emailVerified: xloudidUser.emailVerified,
-        displayName: xloudidUser.displayName,
-        photoURL: xloudidUser.photoURL
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        emailVerified: decodedToken.email_verified || false,
+        displayName: decodedToken.name || null,
+        photoURL: decodedToken.picture || null
       });
     }
 
