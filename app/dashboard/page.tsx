@@ -68,6 +68,7 @@ import { Suspense } from 'react';
 import GroupRequestNotification from '../components/GroupRequestNotification';
 import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
+import { initializeUserSettings } from '../lib/settings';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -969,156 +970,69 @@ ${memoryContext}`
   useEffect(() => {
     console.log("[XloudID] Dashboard component mounted");
     const handleAuth = async () => {
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        const token = url.searchParams.get('token');
-        console.log("[XloudID] Current URL:", window.location.href);
-        console.log("[XloudID] Token from URL:", token ? "Present" : "Not present");
+      const url = new URL(window.location.href);
+      const token = url.searchParams.get('token');
+      
+      if (token) {
+        console.log("[XloudID] Received token:", token.substring(0, 10) + "...");
+        try {
+          const userCredential = await signInWithCustomToken(auth, token);
+          const user = userCredential.user;
+          console.log("[XloudID] Successfully signed in user:", {
+            uid: user.uid,
+            email: user.email,
+            emailVerified: user.emailVerified
+          });
 
-        if (token) {
-          console.log("[XloudID] Processing token:", token.substring(0, 10) + "...");
+          // Create user doc in Firestore if not exists
+          const userRef = doc(db, 'users', user.uid);
           try {
-            console.log("[XloudID] Firebase config check:", {
-              apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? `${process.env.NEXT_PUBLIC_FIREBASE_API_KEY.substring(0, 5)}...` : 'missing',
-              authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'missing',
-              projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'missing'
-            });
+            const userSnap = await getDoc(userRef);
+            console.log("[XloudID] Checking if user document exists:", userSnap.exists());
             
-            // Log the token details (first few characters only)
-            console.log("[XloudID] Token details:", {
-              tokenLength: token.length,
-              tokenPrefix: token.substring(0, 10) + "...",
-              tokenType: typeof token
-            });
-            
-            // Send token to our backend to exchange for a Firebase token
-            const response = await fetch('/api/auth/xloudid', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ token }),
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json();
-              console.error("[XloudID] API Error Response:", errorData);
-              throw new Error(errorData.details || errorData.message || 'Failed to exchange token');
-            }
-
-            const { firebaseToken } = await response.json();
-            console.log("[XloudID] Received Firebase token from backend");
-            
-            // Now use the Firebase token from our backend
-            const userCredential = await signInWithCustomToken(auth, firebaseToken);
-            const user = userCredential.user;
-            console.log("[XloudID] Successfully signed in user:", {
-              uid: user.uid,
-              email: user.email,
-              emailVerified: user.emailVerified
-            });
-
-            // Create user doc in Firestore if not exists
-            const userRef = doc(db, 'users', user.uid);
-            try {
-              const userSnap = await getDoc(userRef);
-              console.log("[XloudID] Checking if user document exists:", userSnap.exists());
+            if (!userSnap.exists()) {
+              console.log("[XloudID] Creating new user document");
+              const userData = {
+                email: user.email,
+                createdAt: serverTimestamp(),
+                lastLogin: serverTimestamp(),
+                emailVerified: user.emailVerified,
+                displayName: user.displayName || null,
+                photoURL: user.photoURL || null
+              };
+              console.log("[XloudID] User data to be saved:", userData);
               
-              if (!userSnap.exists()) {
-                console.log("[XloudID] Creating new user document");
-                const userData = {
-                  email: user.email,
-                  createdAt: new Date(),
-                  lastLogin: new Date(),
-                  emailVerified: user.emailVerified,
-                  displayName: user.displayName || null,
-                  photoURL: user.photoURL || null
-                };
-                console.log("[XloudID] User data to be saved:", userData);
-                
-                // Create user document
-                await setDoc(userRef, userData);
-                console.log("[XloudID] Successfully created user document");
+              await setDoc(userRef, userData);
+              console.log("[XloudID] Successfully created user document");
 
-                // Initialize user settings
-                const settingsRef = doc(db, 'users', user.uid, 'settings', 'user');
-                const defaultSettings = {
-                  theme: 'system',
-                  notifications: {
-                    email: true,
-                    push: true,
-                    weeklyDigest: false,
-                    groupRequests: true,
-                  },
-                  ai: {
-                    model: 'default',
-                    temperature: 0.7,
-                    maxTokens: 2000,
-                  },
-                  memory: {
-                    enabled: true,
-                    retentionDays: 30,
-                    autoArchive: true,
-                  },
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                };
-                await setDoc(settingsRef, defaultSettings);
-                console.log("[XloudID] Successfully initialized user settings");
-
-                // Initialize billing settings
-                const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
-                const defaultBilling = {
-                  plan: 'free',
-                  status: 'active',
-                  startDate: new Date(),
-                  nextBillingDate: new Date(),
-                  billingHistory: [],
-                  usage: {
-                    messagesToday: 0,
-                    filesUploaded: 0,
-                    lastReset: new Date(),
-                  },
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                };
-                await setDoc(billingRef, defaultBilling);
-                console.log("[XloudID] Successfully initialized billing settings");
-              } else {
-                // Update last login time
-                await setDoc(userRef, { lastLogin: new Date() }, { merge: true });
-                console.log("[XloudID] Updated existing user document");
-              }
-            } catch (firestoreError) {
-              console.error("[XloudID] Firestore operation error:", {
-                code: (firestoreError as any).code,
-                message: (firestoreError as any).message,
-                stack: (firestoreError as any).stack
+              // Initialize user settings
+              await initializeUserSettings(user.uid);
+              console.log("[XloudID] Successfully initialized user settings");
+            } else {
+              // Update last login time
+              await updateDoc(userRef, { 
+                lastLogin: serverTimestamp(),
+                emailVerified: user.emailVerified,
+                displayName: user.displayName || null,
+                photoURL: user.photoURL || null
               });
+              console.log("[XloudID] Updated existing user document");
             }
-
-            // Clean up URL
-            url.searchParams.delete('token');
-            window.history.replaceState({}, document.title, url.pathname);
-            console.log("[XloudID] URL cleaned up");
-          } catch (error) {
-            const authError = error as any;
-            console.error("[XloudID] Authentication error details:", {
-              code: authError.code,
-              message: authError.message,
-              stack: authError.stack,
-              name: authError.name,
-              fullError: authError
+          } catch (firestoreError) {
+            console.error("[XloudID] Firestore operation error:", {
+              code: (firestoreError as any).code,
+              message: (firestoreError as any).message,
+              stack: (firestoreError as any).stack
             });
-            
-            // Store error in localStorage for debugging
-            localStorage.setItem('xloudid_auth_error', JSON.stringify({
-              timestamp: new Date().toISOString(),
-              code: authError.code,
-              message: authError.message,
-              name: authError.name
-            }));
           }
+
+          // Clean up URL
+          url.searchParams.delete('token');
+          window.history.replaceState({}, '', url.toString());
+        } catch (error) {
+          console.error("[XloudID] Authentication error:", error);
+          // Redirect to landing page on error
+          window.location.href = '/';
         }
       }
     };

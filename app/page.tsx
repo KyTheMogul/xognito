@@ -233,7 +233,9 @@ export default function LandingPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
     if (e.target.value.length > 0) {
-      window.location.href = 'https://auth.xloudone.com/signup?redirect=https://xognito.com/dashboard';
+      // Redirect to XloudID auth with proper parameters
+      const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
+      window.location.href = `https://auth.xloudone.com/signup?email=${encodeURIComponent(e.target.value)}&redirect=${redirectUrl}`;
     }
   };
 
