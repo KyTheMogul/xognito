@@ -1,142 +1,145 @@
-import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { db } from '@/app/lib/firebase';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-04-30.basil',
+  apiVersion: '2025-04-30.basil'
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const body = await req.text();
+    console.log('[Webhook] Processing webhook request');
+    
     const headersList = await headers();
-    const signature = headersList.get('stripe-signature')!;
+    const signature = headersList.get('stripe-signature');
+
+    if (!signature) {
+      console.error('[Webhook] No signature found in request');
+      return NextResponse.json(
+        { error: 'No signature found' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.text();
+    console.log('[Webhook] Request body:', body);
 
     let event: Stripe.Event;
-
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err) {
-      console.error('Webhook signature verification failed:', err);
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+      console.error('[Webhook] Error verifying webhook signature:', err);
+      return NextResponse.json(
+        { error: 'Webhook signature verification failed' },
+        { status: 400 }
+      );
     }
 
-    console.log('Processing webhook event:', event.type);
+    console.log('[Webhook] Processing event:', event.type);
 
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log('Checkout session completed:', {
-          sessionId: session.id,
-          customerId: session.customer,
-          subscriptionId: session.subscription,
-          metadata: session.metadata
-        });
-        
-        // Get the user ID and plan from the session metadata
-        const userId = session.metadata?.userId;
-        const plan = session.metadata?.plan;
-        const formattedPlan = plan === 'pro' ? 'Pro Plan' : plan === 'pro_plus' ? 'Pro Plus' : 'Free';
+        console.log('[Webhook] Processing checkout.session.completed:', session.id);
 
-        if (!userId || !plan) {
-          console.error('Missing userId or plan in session metadata');
-          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+        if (!session.metadata?.userId) {
+          console.error('[Webhook] No userId in session metadata');
+          return NextResponse.json(
+            { error: 'No userId in session metadata' },
+            { status: 400 }
+          );
         }
 
-        // Get subscription details from Stripe
-        const subscription = session.subscription ? 
-          await stripe.subscriptions.retrieve(session.subscription as string) : null;
+        const userId = session.metadata.userId;
+        const plan = session.metadata.plan || 'free';
 
-        if (!subscription) {
-          console.error('No subscription found for session:', session.id);
-          return NextResponse.json({ error: 'No subscription found' }, { status: 400 });
-        }
+        // Get the subscription details
+        const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+        console.log('[Webhook] Retrieved subscription:', subscription.id);
 
-        // Update user's subscription in Firebase
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, {
-          'subscription.plan': formattedPlan,
-          'subscription.status': 'active', // Set to active immediately for successful purchases
-          'subscription.startDate': Timestamp.fromDate(new Date(subscription.current_period_start * 1000)),
-          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
-          'subscription.stripeCustomerId': session.customer,
-          'subscription.stripeSubscriptionId': session.subscription,
-          'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
-          'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null,
-          'subscription.isActive': true
-        });
+        // Update user's subscription in Firestore
+        const billingRef = doc(db, 'users', userId, 'settings', 'billing');
+        await setDoc(billingRef, {
+          plan,
+          status: subscription.status,
+          stripeCustomerId: session.customer,
+          stripeSubscriptionId: subscription.id,
+          startDate: new Date(subscription.current_period_start * 1000).toISOString(),
+          nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
+          trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
 
-        console.log(`Updated subscription for user ${userId} to ${formattedPlan} plan with status active`);
+        console.log('[Webhook] Updated user subscription in Firestore');
         break;
       }
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log('Subscription updated:', {
-          subscriptionId: subscription.id,
-          status: subscription.status,
-          metadata: subscription.metadata
-        });
+        console.log('[Webhook] Processing customer.subscription.updated:', subscription.id);
 
-        const userId = subscription.metadata?.userId;
-
-        if (!userId) {
-          console.error('Missing userId in subscription metadata');
-          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+        // Get the customer to find the user
+        const customer = await stripe.customers.retrieve(subscription.customer as string) as Stripe.Customer;
+        if (!customer.metadata?.userId) {
+          console.error('[Webhook] No userId in customer metadata');
+          return NextResponse.json(
+            { error: 'No userId in customer metadata' },
+            { status: 400 }
+          );
         }
 
-        // Update subscription status in Firebase
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, {
-          'subscription.status': subscription.status === 'active' ? 'active' : 'pending',
-          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
-          'subscription.cancelAtPeriodEnd': subscription.cancel_at_period_end,
-          'subscription.trialEnd': subscription.trial_end ? Timestamp.fromDate(new Date(subscription.trial_end * 1000)) : null,
-          'subscription.isActive': subscription.status === 'active'
-        });
+        const userId = customer.metadata.userId;
 
-        console.log(`Updated subscription status for user ${userId} to ${subscription.status}`);
+        // Update subscription status in Firestore
+        const billingRef = doc(db, 'users', userId, 'settings', 'billing');
+        await setDoc(billingRef, {
+          status: subscription.status,
+          startDate: new Date(subscription.current_period_start * 1000).toISOString(),
+          nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
+          trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        console.log('[Webhook] Updated subscription status in Firestore');
         break;
       }
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log('Subscription deleted:', {
-          subscriptionId: subscription.id,
-          metadata: subscription.metadata
-        });
+        console.log('[Webhook] Processing customer.subscription.deleted:', subscription.id);
 
-        const userId = subscription.metadata?.userId;
-
-        if (!userId) {
-          console.error('Missing userId in subscription metadata');
-          return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
+        // Get the customer to find the user
+        const customer = await stripe.customers.retrieve(subscription.customer as string) as Stripe.Customer;
+        if (!customer.metadata?.userId) {
+          console.error('[Webhook] No userId in customer metadata');
+          return NextResponse.json(
+            { error: 'No userId in customer metadata' },
+            { status: 400 }
+          );
         }
 
-        // Update subscription status to cancelled in Firebase
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, {
-          'subscription.plan': 'free',
-          'subscription.status': 'cancelled',
-          'subscription.endDate': Timestamp.fromDate(new Date(subscription.current_period_end * 1000)),
-          'subscription.cancelAtPeriodEnd': true,
-          'subscription.isActive': false,
-          'subscription.stripeCustomerId': null,
-          'subscription.stripeSubscriptionId': null
-        });
+        const userId = customer.metadata.userId;
 
-        console.log(`Marked subscription as cancelled for user ${userId}`);
+        // Update subscription status in Firestore
+        const billingRef = doc(db, 'users', userId, 'settings', 'billing');
+        await setDoc(billingRef, {
+          status: 'canceled',
+          plan: 'free',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        console.log('[Webhook] Updated subscription status to canceled in Firestore');
         break;
       }
     }
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('[Webhook] Error processing webhook:', error);
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }
