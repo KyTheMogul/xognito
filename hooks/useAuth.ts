@@ -52,7 +52,8 @@ export function useAuth() {
 
       console.log("[XloudID] Processing token:", token.substring(0, 10) + "...");
       
-      // Send token to our backend to exchange for a Firebase token
+      // Step 1: Exchange token for Firebase token
+      console.log("[XloudID] Step 1: Exchanging token for Firebase token");
       const response = await fetch('/api/auth/xloudid', {
         method: 'POST',
         headers: {
@@ -68,36 +69,54 @@ export function useAuth() {
       }
 
       const { firebaseToken, user } = await response.json();
-      console.log("[XloudID] Received Firebase token and user data from backend");
+      console.log("[XloudID] Token exchange successful:", {
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        tokenLength: firebaseToken.length
+      });
       
-      // Now use the Firebase token from our backend
+      // Step 2: Verify Firebase token
+      console.log("[XloudID] Step 2: Verifying Firebase token");
       const userCredential = await signInWithCustomToken(auth, firebaseToken);
       const firebaseUser = userCredential.user;
-      console.log("[XloudID] Successfully signed in user:", {
+      console.log("[XloudID] Firebase token verification successful:", {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
-        emailVerified: firebaseUser.emailVerified
+        emailVerified: firebaseUser.emailVerified,
+        isAnonymous: firebaseUser.isAnonymous,
+        metadata: firebaseUser.metadata
       });
 
-      // Initialize user settings if needed
+      // Step 3: Initialize user settings
+      console.log("[XloudID] Step 3: Initializing user settings");
       try {
         const userRef = doc(db, 'users', firebaseUser.uid);
         const userSnap = await getDoc(userRef);
         
         if (!userSnap.exists()) {
-          console.log("[XloudID] Initializing user settings");
+          console.log("[XloudID] Creating new user document");
           await initializeUserSettings(firebaseUser.uid);
-          console.log("[XloudID] Successfully initialized user settings");
+          console.log("[XloudID] User document created successfully");
+        } else {
+          console.log("[XloudID] User document already exists");
         }
       } catch (firestoreError) {
         console.error("[XloudID] Firestore operation error:", firestoreError);
-        // Continue with redirect even if Firestore operation fails
+        throw firestoreError; // Don't continue if Firestore operation fails
       }
 
-      // Clean up URL and redirect
+      // Step 4: Get user ID token
+      console.log("[XloudID] Step 4: Getting user ID token");
+      const idToken = await firebaseUser.getIdToken();
+      console.log("[XloudID] User ID token obtained:", {
+        tokenLength: idToken.length,
+        tokenPrefix: idToken.substring(0, 20) + "..."
+      });
+
+      // Clean up URL
       url.searchParams.delete('token');
       window.history.replaceState({}, document.title, url.pathname + url.search);
-      console.log("[XloudID] About to redirect to dashboard");
       
       // Store successful auth in localStorage
       localStorage.setItem('xloudid_auth', 'true');
@@ -105,23 +124,39 @@ export function useAuth() {
         timestamp: new Date().toISOString(),
         uid: firebaseUser.uid,
         email: firebaseUser.email,
-        emailVerified: firebaseUser.emailVerified
+        emailVerified: firebaseUser.emailVerified,
+        idToken: idToken
       }));
       
       // Wait for auth state to be properly set
       await new Promise((resolve) => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
           if (user) {
+            console.log("[XloudID] Auth state confirmed:", {
+              uid: user.uid,
+              email: user.email,
+              emailVerified: user.emailVerified
+            });
             unsubscribe();
             resolve(true);
           }
         });
       });
       
-      // Add a small delay before redirect to ensure logs are visible
-      setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 1000);
+      // Final verification before redirect
+      if (!auth.currentUser) {
+        throw new Error("User not authenticated after token exchange");
+      }
+
+      // Verify user document exists
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        throw new Error("User document not found after initialization");
+      }
+
+      console.log("[XloudID] All verifications passed, redirecting to dashboard");
+      window.location.href = '/dashboard';
     } catch (error) {
       const authError = error as Error;
       console.error("[XloudID] Authentication error:", {
