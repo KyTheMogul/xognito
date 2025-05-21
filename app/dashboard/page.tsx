@@ -1701,11 +1701,22 @@ When responding:
 
   // Add authentication state listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
       setIsAuthenticated(!!user);
+      
       if (!user) {
-        console.log("[Dashboard] No authenticated user, redirecting to home");
+        // Check if we have a token in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (token) {
+          console.log("[Dashboard] Token found in URL, attempting authentication");
+          // Let the useAuth hook handle the token
+          return;
+        }
+        
+        console.log("[Dashboard] No authenticated user and no token, redirecting to home");
         router.push('/');
       } else {
         setIsLoading(false);

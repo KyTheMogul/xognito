@@ -32,6 +32,11 @@ export function useAuth() {
       
       if (!token) {
         console.log("[XloudID] No token found in URL");
+        // Don't redirect if we're already on the dashboard
+        if (window.location.pathname === '/dashboard') {
+          return;
+        }
+        router.push('/');
         return;
       }
 
@@ -107,6 +112,11 @@ export function useAuth() {
         throw new Error("User document not found after initialization");
       }
 
+      // Clean up URL by removing the token
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+
       console.log("[XloudID] All verifications passed, redirecting to dashboard");
       // Use Next.js router for navigation
       router.push('/dashboard');
@@ -127,8 +137,10 @@ export function useAuth() {
         timestamp: new Date().toISOString()
       }));
       
-      // Use Next.js router for error redirect
-      router.push('/');
+      // Only redirect to home if we're not already there
+      if (window.location.pathname !== '/') {
+        router.push('/');
+      }
     } finally {
       setIsLoading(false);
     }
