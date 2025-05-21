@@ -1,14 +1,29 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-04-30.basil'
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+
+// Initialize Firebase Admin if not already initialized
+let adminDb: Firestore;
+if (!getApps().length) {
+  const app = initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  });
+  adminDb = getFirestore(app);
+} else {
+  adminDb = getFirestore();
+}
 
 // Add CORS headers to the response
 function corsHeaders() {
@@ -108,8 +123,8 @@ export async function POST(request: Request) {
           currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString()
         });
 
-        // Update user's subscription in Firestore
-        const billingRef = doc(db, 'users', userId, 'settings', 'billing');
+        // Update user's subscription in Firestore using Admin SDK
+        const billingRef = adminDb.collection('users').doc(userId).collection('settings').doc('billing');
         const billingData = {
           plan: formattedPlan,
           status: subscription.status,
@@ -118,16 +133,23 @@ export async function POST(request: Request) {
           startDate: new Date(subscription.current_period_start * 1000).toISOString(),
           nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
           trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          billingHistory: [],
+          usage: {
+            messagesToday: 0,
+            filesUploaded: 0,
+            lastReset: new Date().toISOString()
+          },
+          createdAt: new Date().toISOString()
         };
 
         console.log('[Webhook] Updating Firestore with data:', billingData);
         try {
-          await setDoc(billingRef, billingData, { merge: true });
+          await billingRef.set(billingData, { merge: true });
           console.log('[Webhook] Firestore update successful');
 
           // Verify the update
-          const updatedDoc = await getDoc(billingRef);
+          const updatedDoc = await billingRef.get();
           console.log('[Webhook] Firestore update verified:', updatedDoc.data());
         } catch (error) {
           console.error('[Webhook] Error updating Firestore:', error);
@@ -154,8 +176,8 @@ export async function POST(request: Request) {
 
         const userId = customer.metadata.userId;
 
-        // Update subscription status in Firestore
-        const billingRef = doc(db, 'users', userId, 'settings', 'billing');
+        // Update subscription status in Firestore using Admin SDK
+        const billingRef = adminDb.collection('users').doc(userId).collection('settings').doc('billing');
         const billingData = {
           status: subscription.status,
           startDate: new Date(subscription.current_period_start * 1000).toISOString(),
@@ -165,10 +187,10 @@ export async function POST(request: Request) {
         };
 
         console.log('[Webhook] Updating subscription status in Firestore:', billingData);
-        await setDoc(billingRef, billingData, { merge: true });
+        await billingRef.set(billingData, { merge: true });
 
         // Verify the update
-        const updatedDoc = await getDoc(billingRef);
+        const updatedDoc = await billingRef.get();
         console.log('[Webhook] Firestore update verified:', updatedDoc.data());
 
         console.log('[Webhook] Updated subscription status in Firestore');
@@ -191,8 +213,8 @@ export async function POST(request: Request) {
 
         const userId = customer.metadata.userId;
 
-        // Update subscription status in Firestore
-        const billingRef = doc(db, 'users', userId, 'settings', 'billing');
+        // Update subscription status in Firestore using Admin SDK
+        const billingRef = adminDb.collection('users').doc(userId).collection('settings').doc('billing');
         const billingData = {
           status: 'canceled',
           plan: 'Free',
@@ -200,10 +222,10 @@ export async function POST(request: Request) {
         };
 
         console.log('[Webhook] Updating subscription status to canceled in Firestore:', billingData);
-        await setDoc(billingRef, billingData, { merge: true });
+        await billingRef.set(billingData, { merge: true });
 
         // Verify the update
-        const updatedDoc = await getDoc(billingRef);
+        const updatedDoc = await billingRef.get();
         console.log('[Webhook] Firestore update verified:', updatedDoc.data());
 
         console.log('[Webhook] Updated subscription status to canceled in Firestore');
