@@ -69,6 +69,7 @@ import GroupRequestNotification from '../components/GroupRequestNotification';
 import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
 import { initializeUserSettings } from '../lib/settings';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -376,6 +377,7 @@ function getFirstName(displayName: string | null): string {
 
 // Force new deployment - May 15, 2024
 export default function Dashboard() {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -386,6 +388,7 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<MessageWithId[]>([]);
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1695,6 +1698,34 @@ When responding:
       setError('Failed to create checkout session. Please try again.');
     }
   };
+
+  // Add authentication state listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
+      setIsAuthenticated(!!user);
+      if (!user) {
+        console.log("[Dashboard] No authenticated user, redirecting to home");
+        router.push('/');
+      } else {
+        setIsLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  // Only render content if authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Loading...</h1>
+          <p>Please wait while we verify your authentication.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">

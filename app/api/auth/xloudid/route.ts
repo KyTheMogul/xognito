@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from 'firebase-admin';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { auth } from '@/lib/firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
 console.log("[XloudID API] API route loaded");
@@ -10,46 +9,26 @@ const requiredEnvVars = {
   FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
   FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
   FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
 };
 
 console.log("[XloudID API] Environment check:", {
   hasProjectId: !!requiredEnvVars.FIREBASE_ADMIN_PROJECT_ID,
   hasClientEmail: !!requiredEnvVars.FIREBASE_ADMIN_CLIENT_EMAIL,
   hasPrivateKey: !!requiredEnvVars.FIREBASE_ADMIN_PRIVATE_KEY,
+  hasStorageBucket: !!requiredEnvVars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   deploymentEnv: process.env.NODE_ENV,
   vercelEnv: process.env.VERCEL_ENV,
 });
 
+// Only check for required auth variables, storage bucket is optional
 const missingVars = Object.entries(requiredEnvVars)
-  .filter(([_, value]) => !value)
+  .filter(([key, value]) => !value && key !== 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET')
   .map(([key]) => key);
 
 if (missingVars.length > 0) {
   console.error("[XloudID API] Missing required environment variables:", missingVars);
   throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-}
-
-// Initialize Firebase Admin if not already initialized
-if (!getApps().length) {
-  try {
-    console.log("[XloudID API] Initializing Firebase Admin with config:", {
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      hasPrivateKey: !!process.env.FIREBASE_ADMIN_PRIVATE_KEY,
-    });
-
-    initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-    console.log("[XloudID API] Firebase Admin initialized successfully");
-  } catch (error) {
-    console.error("[XloudID API] Firebase Admin initialization error:", error);
-    throw error;
-  }
 }
 
 // Initialize Firestore
@@ -59,7 +38,11 @@ export async function POST(request: Request) {
   console.log("[XloudID API] POST request received");
   try {
     const { token } = await request.json();
-    console.log("[XloudID API] Received token request");
+    console.log("[XloudID API] Received token request:", {
+      tokenLength: token?.length,
+      tokenPrefix: token?.substring(0, 10) + "...",
+      timestamp: new Date().toISOString()
+    });
 
     if (!token) {
       console.log("[XloudID API] No token provided");
@@ -70,56 +53,79 @@ export async function POST(request: Request) {
     }
 
     // Create user in Firebase Authentication if it doesn't exist
+    const uid = `xloudid_${token}`;
+    let user;
     try {
-      const uid = `xloudid_${token}`;
-      try {
-        await auth().getUser(uid);
-        console.log("[XloudID API] User already exists in Firebase Auth");
-      } catch (error: any) {
-        if (error.code === 'auth/user-not-found') {
-          console.log("[XloudID API] Creating new user in Firebase Auth");
-          await auth().createUser({
-            uid: uid,
-            email: `${uid}@xloudid.com`, // Using a placeholder email
-            emailVerified: false,
-            disabled: false
-          });
-          // Set custom claims after user creation
-          await auth().setCustomUserClaims(uid, {
-            provider: 'xloudid',
-            originalToken: token
-          });
-          console.log("[XloudID API] User created in Firebase Auth successfully");
-        } else {
-          throw error;
-        }
+      console.log("[XloudID API] Attempting to get user:", uid);
+      user = await auth.getUser(uid);
+      console.log("[XloudID API] User already exists in Firebase Auth:", {
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        customClaims: user.customClaims
+      });
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        console.log("[XloudID API] Creating new user in Firebase Auth with data:", {
+          uid,
+          email: `${uid}@xloudid.com`,
+          emailVerified: true
+        });
+        user = await auth.createUser({
+          uid: uid,
+          email: `${uid}@xloudid.com`,
+          emailVerified: true,
+          disabled: false
+        });
+        console.log("[XloudID API] User created in Firebase Auth successfully:", {
+          uid: user.uid,
+          email: user.email,
+          emailVerified: user.emailVerified
+        });
+      } else {
+        console.error("[XloudID API] Error getting/creating user:", {
+          code: error.code,
+          message: error.message,
+          stack: error.stack
+        });
+        throw error;
       }
-    } catch (error) {
-      console.error("[XloudID API] Error creating user in Firebase Auth:", error);
-      throw error;
     }
 
-    // Create a custom token for our Firebase project
-    console.log("[XloudID API] Creating Firebase custom token");
-    const firebaseToken = await auth().createCustomToken(`xloudid_${token}`, {
+    // Set custom claims
+    console.log("[XloudID API] Setting custom claims for user:", uid);
+    await auth.setCustomUserClaims(uid, {
       provider: 'xloudid',
-      originalToken: token
+      originalToken: token,
+      emailVerified: true
     });
-    console.log("[XloudID API] Firebase token created successfully");
+    console.log("[XloudID API] Custom claims set successfully");
+
+    // Create a custom token for our Firebase project
+    console.log("[XloudID API] Creating Firebase custom token for user:", uid);
+    const firebaseToken = await auth.createCustomToken(uid, {
+      provider: 'xloudid',
+      originalToken: token,
+      emailVerified: true
+    });
+    console.log("[XloudID API] Firebase token created successfully:", {
+      tokenLength: firebaseToken.length,
+      tokenPrefix: firebaseToken.substring(0, 10) + "..."
+    });
 
     // Create or update user document in Firestore
-    const userRef = adminDb.collection('users').doc(`xloudid_${token}`);
+    const userRef = adminDb.collection('users').doc(uid);
     const userDoc = await userRef.get();
 
     if (!userDoc.exists) {
-      console.log("[XloudID API] Creating new user document");
+      console.log("[XloudID API] Creating new user document in Firestore");
       try {
-        await userRef.set({
+        const userData = {
           provider: 'xloudid',
           xloudId: token,
           createdAt: new Date(),
           lastLogin: new Date(),
-          emailVerified: false,
+          emailVerified: true,
           settings: {
             theme: 'system',
             notifications: {
@@ -151,27 +157,42 @@ export async function POST(request: Request) {
               lastReset: new Date(),
             }
           }
-        });
-        console.log("[XloudID API] User document created successfully");
+        };
+        await userRef.set(userData);
+        console.log("[XloudID API] User document created successfully in Firestore");
       } catch (error) {
         console.error("[XloudID API] Error creating user document:", error);
         // Continue with token exchange even if user document creation fails
       }
     } else {
-      console.log("[XloudID API] Updating existing user document");
+      console.log("[XloudID API] Updating existing user document in Firestore");
       try {
         await userRef.update({
           lastLogin: new Date(),
-          xloudId: token
+          xloudId: token,
+          emailVerified: true
         });
-        console.log("[XloudID API] User document updated successfully");
+        console.log("[XloudID API] User document updated successfully in Firestore");
       } catch (error) {
         console.error("[XloudID API] Error updating user document:", error);
         // Continue with token exchange even if user document update fails
       }
     }
 
-    return NextResponse.json({ firebaseToken });
+    const response = { 
+      firebaseToken,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        emailVerified: true
+      }
+    };
+    console.log("[XloudID API] Sending successful response:", {
+      uid: response.user.uid,
+      email: response.user.email,
+      tokenLength: response.firebaseToken.length
+    });
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error("[XloudID API] Token exchange error:", {
       name: error.name,

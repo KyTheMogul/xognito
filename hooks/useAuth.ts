@@ -1,12 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
-import { signInWithCustomToken } from 'firebase/auth';
+import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { initializeUserSettings } from '@/lib/settings';
 
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+      console.log("[XloudID] Auth state changed:", user ? "Authenticated" : "Not authenticated");
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleAuth = useCallback(async () => {
     console.log("[XloudID] handleAuth started");
@@ -57,26 +67,26 @@ export function useAuth() {
         throw new Error(errorData.details || errorData.message || 'Failed to exchange token');
       }
 
-      const { firebaseToken } = await response.json();
-      console.log("[XloudID] Received Firebase token from backend");
+      const { firebaseToken, user } = await response.json();
+      console.log("[XloudID] Received Firebase token and user data from backend");
       
       // Now use the Firebase token from our backend
       const userCredential = await signInWithCustomToken(auth, firebaseToken);
-      const user = userCredential.user;
+      const firebaseUser = userCredential.user;
       console.log("[XloudID] Successfully signed in user:", {
-        uid: user.uid,
-        email: user.email,
-        emailVerified: user.emailVerified
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        emailVerified: firebaseUser.emailVerified
       });
 
       // Initialize user settings if needed
       try {
-        const userRef = doc(db, 'users', user.uid);
+        const userRef = doc(db, 'users', firebaseUser.uid);
         const userSnap = await getDoc(userRef);
         
         if (!userSnap.exists()) {
           console.log("[XloudID] Initializing user settings");
-          await initializeUserSettings(user.uid);
+          await initializeUserSettings(firebaseUser.uid);
           console.log("[XloudID] Successfully initialized user settings");
         }
       } catch (firestoreError) {
@@ -93,9 +103,20 @@ export function useAuth() {
       localStorage.setItem('xloudid_auth', 'true');
       localStorage.setItem('xloudid_logs', JSON.stringify({
         timestamp: new Date().toISOString(),
-        uid: user.uid,
-        email: user.email
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        emailVerified: firebaseUser.emailVerified
       }));
+      
+      // Wait for auth state to be properly set
+      await new Promise((resolve) => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          if (user) {
+            unsubscribe();
+            resolve(true);
+          }
+        });
+      });
       
       // Add a small delay before redirect to ensure logs are visible
       setTimeout(() => {
@@ -128,6 +149,7 @@ export function useAuth() {
   return {
     handleAuth,
     isLoading,
-    error
+    error,
+    isAuthenticated
   };
 } 
