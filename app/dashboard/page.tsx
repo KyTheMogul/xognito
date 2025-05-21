@@ -70,6 +70,7 @@ import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
 import { initializeUserSettings } from '../lib/settings';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/hooks/useAuth';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -486,6 +487,8 @@ export default function Dashboard() {
   const [cropper, setCropper] = useState<Cropper | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+
+  const { handleAuth } = useAuth();
 
   // Update search filtering
   useEffect(() => {
@@ -1699,7 +1702,7 @@ When responding:
     }
   };
 
-  // Add authentication state listener
+  // Add authentication state listener and handle token
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
@@ -1712,7 +1715,12 @@ When responding:
         
         if (token) {
           console.log("[Dashboard] Token found in URL, attempting authentication");
-          // Let the useAuth hook handle the token
+          try {
+            await handleAuth();
+          } catch (error) {
+            console.error("[Dashboard] Authentication failed:", error);
+            router.push('/');
+          }
           return;
         }
         
@@ -1724,7 +1732,7 @@ When responding:
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, handleAuth]);
 
   // Show loading state while checking authentication
   if (isLoading) {

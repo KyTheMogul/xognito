@@ -32,11 +32,6 @@ export function useAuth() {
       
       if (!token) {
         console.log("[XloudID] No token found in URL");
-        // Don't redirect if we're already on the dashboard
-        if (window.location.pathname === '/dashboard') {
-          return;
-        }
-        router.push('/');
         return;
       }
 
@@ -115,7 +110,7 @@ export function useAuth() {
       // Clean up URL by removing the token
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
-      window.history.replaceState({}, document.title, url.pathname + url.search);
+      window.history.replaceState({}, document.title, url.pathname);
 
       console.log("[XloudID] All verifications passed, redirecting to dashboard");
       // Use Next.js router for navigation
