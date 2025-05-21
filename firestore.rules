@@ -1,0 +1,263 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow public read access to usernames for authentication
+    match /users/{userId} {
+      allow read: if true;  // Allow reading user documents for username lookup
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isInvitedUser() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.isInvitedUser == true;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidSettingsData() {
+      let data = request.resource.data;
+      return data.theme in ['dark', 'light', 'system'] &&
+             data.notifications.email is bool &&
+             data.notifications.push is bool &&
+             data.notifications.weeklyDigest is bool &&
+             data.notifications.groupRequests is bool &&
+             data.ai.model in ['default', 'pro', 'custom'] &&
+             data.ai.temperature is number &&
+             data.ai.temperature >= 0.0 &&
+             data.ai.temperature <= 1.0 &&
+             data.ai.maxTokens is number &&
+             data.ai.maxTokens >= 100 &&
+             data.ai.maxTokens <= 4000 &&
+             data.memory.enabled is bool &&
+             data.memory.retentionDays is number &&
+             data.memory.retentionDays >= 1 &&
+             data.memory.retentionDays <= 365 &&
+             data.memory.autoArchive is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+    
+    function isValidBillingData() {
+      let data = request.resource.data;
+      return data.plan in ['free', 'pro', 'pro_plus'] &&
+             data.status in ['active', 'canceled', 'past_due', 'trialing'] &&
+             (!('stripeCustomerId' in data) || data.stripeCustomerId is string) &&
+             (!('stripeSubscriptionId' in data) || data.stripeSubscriptionId is string) &&
+             data.startDate is timestamp &&
+             data.nextBillingDate is timestamp &&
+             (!('trialEndsAt' in data) || data.trialEndsAt is timestamp) &&
+             data.billingHistory is list &&
+             data.usage.messagesToday is number &&
+             data.usage.filesUploaded is number &&
+             data.usage.lastReset is timestamp &&
+             (!('group' in data) || (
+               data.group.id is string &&
+               data.group.name is string &&
+               data.group.owner is string &&
+               data.group.members is list
+             )) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+    
+    function isValidBillingHistoryEntry() {
+      let entry = request.resource.data.billingHistory[request.resource.data.billingHistory.size() - 1];
+      return entry.id is string &&
+             entry.amount is number &&
+             entry.amount > 0 &&
+             entry.currency is string &&
+             entry.status in ['succeeded', 'failed', 'pending'] &&
+             entry.date is timestamp &&
+             entry.description is string &&
+             (!('invoiceUrl' in entry) || entry.invoiceUrl is string);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Nested conversations collection
+      match /conversations/{conversationId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+        
+        // Nested messages collection
+        match /messages/{messageId} {
+          allow read, write: if isAuthenticated() && request.auth.uid == userId;
+        }
+      }
+
+      // Nested memory collection
+      match /memory/{memoryId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // User's subscription
+      match /subscription/{docId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == userId || 
+          isInvitedUser() && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.invitedBy == userId
+        );
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Nested usageStats collection
+      match /usageStats/{statsId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Nested collections under users
+      match /{collection}/{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User's groups collection
+      match /groups/{groupId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // User settings rules
+      match /settings/{document=**} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && 
+          (
+            (document == 'user' && isValidSettingsData()) ||
+            (document == 'billing' && isValidBillingData())
+          );
+        allow update: if isOwner(userId) && 
+          (
+            (document == 'user' && isValidSettingsData()) ||
+            (document == 'billing' && (
+              isValidBillingData() ||
+              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['billingHistory', 'updatedAt']) && 
+               isValidBillingHistoryEntry()) ||
+              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usage', 'updatedAt']))
+            ))
+          );
+        allow delete: if false;
+      }
+
+      // Additional rules for group billing
+      match /settings/billing {
+        allow read: if isAuthenticated() && 
+          (
+            isOwner(userId) || 
+            (resource.data.group != null && 
+             resource.data.group.owner == request.auth.uid)
+          );
+        allow update: if isAuthenticated() && 
+          (
+            isOwner(userId) || 
+            (resource.data.group != null && 
+             resource.data.group.owner == request.auth.uid &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['group', 'updatedAt']))
+          );
+      }
+    }
+
+    // Groups collection rules
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.resource.data.members.hasAny([request.auth.uid]) &&
+        request.resource.data.owner == request.auth.uid;
+      allow update: if isAuthenticated() && 
+        (resource.data.members.hasAny([request.auth.uid]) || 
+         resource.data.owner == request.auth.uid);
+      allow delete: if isAuthenticated() && 
+        resource.data.owner == request.auth.uid;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && 
+          get(/databases/$(database)/documents/groups/$(groupId)).data.members.hasAny([request.auth.uid]);
+        allow create: if isAuthenticated() && 
+          get(/databases/$(database)/documents/groups/$(groupId)).data.members.hasAny([request.auth.uid]);
+        allow update, delete: if isAuthenticated() && 
+          (resource.data.senderId == request.auth.uid || 
+           get(/databases/$(database)/documents/groups/$(groupId)).data.owner == request.auth.uid);
+      }
+    }
+
+    // Notifications collection rules
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || 
+         resource.data.owner == request.auth.uid);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || 
+         resource.data.owner == request.auth.uid);
+      allow delete: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || 
+         resource.data.owner == request.auth.uid);
+    }
+
+    // Invitations collection
+    match /invitations/{inviteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.plan == 'pro';
+      allow update: if isAuthenticated() && (
+        resource.data.email == request.auth.token.email ||
+        resource.data.inviterId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && resource.data.inviterId == request.auth.uid;
+    }
+
+    // Checkout sessions collection
+    match /checkout_sessions/{sessionId} {
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Redeem codes collection rules
+    match /redeemCodes/{codeId} {
+      allow create: if isAdmin();
+      allow read: if isAdmin();
+      allow get: if isAuthenticated() && 
+        request.query.limit <= 1 && 
+        request.query.filters.size() == 1 && 
+        request.query.filters[0].op == '==' && 
+        request.query.filters[0].path == ['code'] && 
+        request.query.filters[0].value == request.query.filters[0].value;
+      allow update: if isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['used', 'usedBy', 'usedAt']) &&
+        request.resource.data.used == true &&
+        request.resource.data.usedBy == request.auth.uid &&
+        request.resource.data.usedAt is timestamp &&
+        resource.data.used == false;
+    }
+
+    // Profile images collection
+    match /profileImages/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 
