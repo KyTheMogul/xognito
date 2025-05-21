@@ -56,6 +56,11 @@ export async function POST(request: Request) {
 
         const userId = session.metadata.userId;
         const plan = session.metadata.plan || 'free';
+        
+        // Format plan name with proper capitalization
+        const formattedPlan = plan === 'pro' ? 'Pro' : 
+                            plan === 'pro_plus' ? 'Pro Plus' : 
+                            'Free';
 
         // Get the subscription details
         const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
@@ -64,7 +69,7 @@ export async function POST(request: Request) {
         // Update user's subscription in Firestore
         const billingRef = doc(db, 'users', userId, 'settings', 'billing');
         await setDoc(billingRef, {
-          plan,
+          plan: formattedPlan,
           status: subscription.status,
           stripeCustomerId: session.customer,
           stripeSubscriptionId: subscription.id,
@@ -128,7 +133,7 @@ export async function POST(request: Request) {
         const billingRef = doc(db, 'users', userId, 'settings', 'billing');
         await setDoc(billingRef, {
           status: 'canceled',
-          plan: 'free',
+          plan: 'Free',
           updatedAt: new Date().toISOString()
         }, { merge: true });
 
