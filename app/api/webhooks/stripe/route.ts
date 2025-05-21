@@ -10,18 +10,44 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
+// Add CORS headers to the response
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, stripe-signature',
+  };
+}
+
+// Handle OPTIONS request for CORS
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders() });
+}
+
+// Add a GET handler to test the endpoint
+export async function GET() {
+  return NextResponse.json({ 
+    status: 'ok',
+    message: 'Stripe webhook endpoint is accessible',
+    timestamp: new Date().toISOString()
+  }, { headers: corsHeaders() });
+}
+
 export async function POST(request: Request) {
   try {
-    console.log('[Webhook] Processing webhook request');
+    console.log('[Webhook] ====== New Webhook Request ======');
+    console.log('[Webhook] Environment:', process.env.NODE_ENV);
+    console.log('[Webhook] Webhook Secret:', webhookSecret ? 'Present' : 'Missing');
     
     const headersList = await headers();
     const signature = headersList.get('stripe-signature');
+    console.log('[Webhook] Stripe Signature:', signature ? 'Present' : 'Missing');
 
     if (!signature) {
       console.error('[Webhook] No signature found in request');
       return NextResponse.json(
         { error: 'No signature found' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders() }
       );
     }
 
@@ -31,11 +57,15 @@ export async function POST(request: Request) {
     let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      console.log('[Webhook] Event constructed successfully:', {
+        type: event.type,
+        id: event.id
+      });
     } catch (err) {
       console.error('[Webhook] Error verifying webhook signature:', err);
       return NextResponse.json(
         { error: 'Webhook signature verification failed' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders() }
       );
     }
 
@@ -44,13 +74,18 @@ export async function POST(request: Request) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log('[Webhook] Processing checkout.session.completed:', session.id);
+        console.log('[Webhook] Processing checkout.session.completed:', {
+          sessionId: session.id,
+          customerId: session.customer,
+          subscriptionId: session.subscription,
+          metadata: session.metadata
+        });
 
         if (!session.metadata?.userId) {
           console.error('[Webhook] No userId in session metadata');
           return NextResponse.json(
             { error: 'No userId in session metadata' },
-            { status: 400 }
+            { status: 400, headers: corsHeaders() }
           );
         }
 
@@ -62,13 +97,20 @@ export async function POST(request: Request) {
                             plan === 'pro_plus' ? 'Pro Plus' : 
                             'Free';
 
+        console.log('[Webhook] Formatted plan name:', formattedPlan);
+
         // Get the subscription details
         const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
-        console.log('[Webhook] Retrieved subscription:', subscription.id);
+        console.log('[Webhook] Retrieved subscription:', {
+          id: subscription.id,
+          status: subscription.status,
+          currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString()
+        });
 
         // Update user's subscription in Firestore
         const billingRef = doc(db, 'users', userId, 'settings', 'billing');
-        await setDoc(billingRef, {
+        const billingData = {
           plan: formattedPlan,
           status: subscription.status,
           stripeCustomerId: session.customer,
@@ -77,7 +119,20 @@ export async function POST(request: Request) {
           nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
           trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
           updatedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        console.log('[Webhook] Updating Firestore with data:', billingData);
+        try {
+          await setDoc(billingRef, billingData, { merge: true });
+          console.log('[Webhook] Firestore update successful');
+
+          // Verify the update
+          const updatedDoc = await getDoc(billingRef);
+          console.log('[Webhook] Firestore update verified:', updatedDoc.data());
+        } catch (error) {
+          console.error('[Webhook] Error updating Firestore:', error);
+          throw error;
+        }
 
         console.log('[Webhook] Updated user subscription in Firestore');
         break;
@@ -93,7 +148,7 @@ export async function POST(request: Request) {
           console.error('[Webhook] No userId in customer metadata');
           return NextResponse.json(
             { error: 'No userId in customer metadata' },
-            { status: 400 }
+            { status: 400, headers: corsHeaders() }
           );
         }
 
@@ -101,13 +156,20 @@ export async function POST(request: Request) {
 
         // Update subscription status in Firestore
         const billingRef = doc(db, 'users', userId, 'settings', 'billing');
-        await setDoc(billingRef, {
+        const billingData = {
           status: subscription.status,
           startDate: new Date(subscription.current_period_start * 1000).toISOString(),
           nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
           trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
           updatedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        console.log('[Webhook] Updating subscription status in Firestore:', billingData);
+        await setDoc(billingRef, billingData, { merge: true });
+
+        // Verify the update
+        const updatedDoc = await getDoc(billingRef);
+        console.log('[Webhook] Firestore update verified:', updatedDoc.data());
 
         console.log('[Webhook] Updated subscription status in Firestore');
         break;
@@ -123,7 +185,7 @@ export async function POST(request: Request) {
           console.error('[Webhook] No userId in customer metadata');
           return NextResponse.json(
             { error: 'No userId in customer metadata' },
-            { status: 400 }
+            { status: 400, headers: corsHeaders() }
           );
         }
 
@@ -131,23 +193,31 @@ export async function POST(request: Request) {
 
         // Update subscription status in Firestore
         const billingRef = doc(db, 'users', userId, 'settings', 'billing');
-        await setDoc(billingRef, {
+        const billingData = {
           status: 'canceled',
           plan: 'Free',
           updatedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        console.log('[Webhook] Updating subscription status to canceled in Firestore:', billingData);
+        await setDoc(billingRef, billingData, { merge: true });
+
+        // Verify the update
+        const updatedDoc = await getDoc(billingRef);
+        console.log('[Webhook] Firestore update verified:', updatedDoc.data());
 
         console.log('[Webhook] Updated subscription status to canceled in Firestore');
         break;
       }
     }
 
-    return NextResponse.json({ received: true });
+    console.log('[Webhook] ====== Webhook Processing Complete ======');
+    return NextResponse.json({ received: true }, { headers: corsHeaders() });
   } catch (error) {
     console.error('[Webhook] Error processing webhook:', error);
     return NextResponse.json(
       { error: 'Webhook handler failed' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders() }
     );
   }
 } 
