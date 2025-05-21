@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import crypto from 'crypto';
 
 console.log("[XloudID API] API route loaded");
 
@@ -34,10 +35,21 @@ if (missingVars.length > 0) {
 // Initialize Firestore
 const adminDb = getFirestore();
 
+// Function to create a valid UID from token
+function createValidUid(token: string): string {
+  // Create a hash of the token
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  // Take first 28 characters (Firebase UIDs are typically 28 chars)
+  return `xloudid_${hash.substring(0, 20)}`;
+}
+
 export async function POST(request: Request) {
   console.log("[XloudID API] POST request received");
   try {
-    const { token } = await request.json();
+    const body = await request.json();
+    console.log("[XloudID API] Request body:", body);
+    
+    const { token } = body;
     console.log("[XloudID API] Received token request:", {
       tokenLength: token?.length,
       tokenPrefix: token?.substring(0, 10) + "...",
@@ -52,8 +64,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create user in Firebase Authentication if it doesn't exist
-    const uid = `xloudid_${token}`;
+    // Create a valid UID from the token
+    const uid = createValidUid(token);
+    console.log("[XloudID API] Generated UID:", uid);
+
     let user;
     try {
       console.log("[XloudID API] Attempting to get user:", uid);
