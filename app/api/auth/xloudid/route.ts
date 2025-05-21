@@ -101,18 +101,6 @@ export async function POST(request: Request) {
     });
     console.log("[XloudID API] Custom claims set successfully");
 
-    // Create a custom token for our Firebase project
-    console.log("[XloudID API] Creating Firebase custom token for user:", uid);
-    const firebaseToken = await auth.createCustomToken(uid, {
-      provider: 'xloudid',
-      originalToken: token,
-      emailVerified: true
-    });
-    console.log("[XloudID API] Firebase token created successfully:", {
-      tokenLength: firebaseToken.length,
-      tokenPrefix: firebaseToken.substring(0, 10) + "..."
-    });
-
     // Create or update user document in Firestore
     const userRef = adminDb.collection('users').doc(uid);
     const userDoc = await userRef.get();
@@ -162,7 +150,14 @@ export async function POST(request: Request) {
         console.log("[XloudID API] User document created successfully in Firestore");
       } catch (error) {
         console.error("[XloudID API] Error creating user document:", error);
-        // Continue with token exchange even if user document creation fails
+        // If user document creation fails, delete the Firebase Auth user
+        try {
+          await auth.deleteUser(uid);
+          console.log("[XloudID API] Deleted Firebase Auth user due to Firestore failure");
+        } catch (deleteError) {
+          console.error("[XloudID API] Error deleting Firebase Auth user:", deleteError);
+        }
+        throw error; // Re-throw the error to fail the request
       }
     } else {
       console.log("[XloudID API] Updating existing user document in Firestore");
@@ -175,9 +170,21 @@ export async function POST(request: Request) {
         console.log("[XloudID API] User document updated successfully in Firestore");
       } catch (error) {
         console.error("[XloudID API] Error updating user document:", error);
-        // Continue with token exchange even if user document update fails
+        throw error; // Re-throw the error to fail the request
       }
     }
+
+    // Create a custom token for our Firebase project
+    console.log("[XloudID API] Creating Firebase custom token for user:", uid);
+    const firebaseToken = await auth.createCustomToken(uid, {
+      provider: 'xloudid',
+      originalToken: token,
+      emailVerified: true
+    });
+    console.log("[XloudID API] Firebase token created successfully:", {
+      tokenLength: firebaseToken.length,
+      tokenPrefix: firebaseToken.substring(0, 10) + "..."
+    });
 
     const response = { 
       firebaseToken,

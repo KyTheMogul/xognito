@@ -1715,16 +1715,22 @@ When responding:
     return () => unsubscribe();
   }, [router]);
 
-  // Only render content if authenticated
-  if (!isAuthenticated) {
+  // Show loading state while checking authentication
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Loading...</h1>
-          <p>Please wait while we verify your authentication.</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+          <h1 className="text-2xl font-bold mb-4 text-white">Loading...</h1>
+          <p className="text-zinc-400">Please wait while we verify your authentication.</p>
         </div>
       </div>
     );
+  }
+
+  // Only render content if authenticated
+  if (!isAuthenticated) {
+    return null; // Will redirect in useEffect
   }
 
   return (

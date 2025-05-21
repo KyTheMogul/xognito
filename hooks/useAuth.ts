@@ -1,13 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 import { initializeUserSettings } from '@/lib/settings';
 
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -20,40 +22,22 @@ export function useAuth() {
 
   const handleAuth = useCallback(async () => {
     console.log("[XloudID] handleAuth started");
-    if (typeof window === 'undefined') return;
-
     setIsLoading(true);
     setError(null);
 
     try {
-      const url = new URL(window.location.href);
-      const token = url.searchParams.get('token');
-      console.log("[XloudID] Current URL:", window.location.href);
-      console.log("[XloudID] Token from URL:", token ? "Present" : "Not present");
+      // Get token from URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
       
       if (!token) {
         console.log("[XloudID] No token found in URL");
-        // Check if we're on the dashboard page
-        if (window.location.pathname === '/dashboard') {
-          console.log("[XloudID] On dashboard page, checking for stored logs");
-          const storedLogs = localStorage.getItem('xloudid_logs');
-          const storedError = localStorage.getItem('xloudid_error');
-          if (storedLogs) {
-            console.log("[XloudID] Previous logs:", JSON.parse(storedLogs));
-            localStorage.removeItem('xloudid_logs');
-          }
-          if (storedError) {
-            console.error("[XloudID] Previous error:", JSON.parse(storedError));
-            localStorage.removeItem('xloudid_error');
-          }
-        }
         return;
       }
 
-      console.log("[XloudID] Processing token:", token.substring(0, 10) + "...");
+      console.log("[XloudID] Token found, exchanging for Firebase token");
       
-      // Step 1: Exchange token for Firebase token
-      console.log("[XloudID] Step 1: Exchanging token for Firebase token");
+      // Exchange token for Firebase token
       const response = await fetch('/api/auth/xloudid', {
         method: 'POST',
         headers: {
@@ -64,62 +48,29 @@ export function useAuth() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("[XloudID] API Error Response:", errorData);
-        throw new Error(errorData.details || errorData.message || 'Failed to exchange token');
+        console.error("[XloudID] Token exchange failed:", errorData);
+        throw new Error(errorData.message || 'Failed to exchange token');
       }
 
-      const { firebaseToken, user } = await response.json();
+      const { firebaseToken, user: userData } = await response.json();
       console.log("[XloudID] Token exchange successful:", {
-        uid: user.uid,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        tokenLength: firebaseToken.length
+        uid: userData.uid,
+        email: userData.email
       });
-      
-      // Step 2: Verify Firebase token
-      console.log("[XloudID] Step 2: Verifying Firebase token");
+
+      // Sign in with Firebase token
       const userCredential = await signInWithCustomToken(auth, firebaseToken);
       const firebaseUser = userCredential.user;
-      console.log("[XloudID] Firebase token verification successful:", {
+      console.log("[XloudID] Firebase sign in successful:", {
         uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        emailVerified: firebaseUser.emailVerified,
-        isAnonymous: firebaseUser.isAnonymous,
-        metadata: firebaseUser.metadata
+        email: firebaseUser.email
       });
 
-      // Step 3: Initialize user settings
-      console.log("[XloudID] Step 3: Initializing user settings");
-      try {
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
-        
-        if (!userSnap.exists()) {
-          console.log("[XloudID] Creating new user document");
-          await initializeUserSettings(firebaseUser.uid);
-          console.log("[XloudID] User document created successfully");
-        } else {
-          console.log("[XloudID] User document already exists");
-        }
-      } catch (firestoreError) {
-        console.error("[XloudID] Firestore operation error:", firestoreError);
-        throw firestoreError; // Don't continue if Firestore operation fails
-      }
-
-      // Step 4: Get user ID token
-      console.log("[XloudID] Step 4: Getting user ID token");
+      // Get the ID token
       const idToken = await firebaseUser.getIdToken();
-      console.log("[XloudID] User ID token obtained:", {
-        tokenLength: idToken.length,
-        tokenPrefix: idToken.substring(0, 20) + "..."
-      });
+      console.log("[XloudID] Got ID token");
 
-      // Clean up URL
-      url.searchParams.delete('token');
-      window.history.replaceState({}, document.title, url.pathname + url.search);
-      
-      // Store successful auth in localStorage
-      localStorage.setItem('xloudid_auth', 'true');
+      // Store auth logs
       localStorage.setItem('xloudid_logs', JSON.stringify({
         timestamp: new Date().toISOString(),
         uid: firebaseUser.uid,
@@ -137,6 +88,7 @@ export function useAuth() {
               email: user.email,
               emailVerified: user.emailVerified
             });
+            setIsAuthenticated(true);
             unsubscribe();
             resolve(true);
           }
@@ -156,7 +108,8 @@ export function useAuth() {
       }
 
       console.log("[XloudID] All verifications passed, redirecting to dashboard");
-      window.location.href = '/dashboard';
+      // Use Next.js router for navigation
+      router.push('/dashboard');
     } catch (error) {
       const authError = error as Error;
       console.error("[XloudID] Authentication error:", {
@@ -174,12 +127,12 @@ export function useAuth() {
         timestamp: new Date().toISOString()
       }));
       
-      // Redirect to landing page on error
-      window.location.href = '/';
+      // Use Next.js router for error redirect
+      router.push('/');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [router]);
 
   return {
     handleAuth,
