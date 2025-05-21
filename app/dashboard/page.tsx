@@ -1734,6 +1734,60 @@ When responding:
     return () => unsubscribe();
   }, [router, handleAuth]);
 
+  // Handle Stripe session completion
+  useEffect(() => {
+    const checkSessionStatus = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id');
+
+      if (sessionId) {
+        console.log("[Dashboard] Found Stripe session ID:", sessionId);
+        try {
+          // Verify session status
+          const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`);
+          const data = await response.json();
+
+          if (data.status === 'complete') {
+            console.log("[Dashboard] Payment successful, refreshing subscription data");
+            // Refresh subscription data
+            const user = auth.currentUser;
+            if (user) {
+              const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+              const billingDoc = await getDoc(billingRef);
+              
+              if (billingDoc.exists()) {
+                const data = billingDoc.data();
+                setUserSubscription({
+                  plan: data.plan,
+                  isActive: data.status === 'active' || data.status === 'trialing',
+                  stripeCustomerId: data.stripeCustomerId,
+                  stripeSubscriptionId: data.stripeSubscriptionId,
+                  startDate: data.startDate,
+                  nextBillingDate: data.nextBillingDate,
+                  trialEndsAt: data.trialEndsAt,
+                  status: data.status,
+                  billingHistory: data.billingHistory || [],
+                  isInvitedUser: data.isInvitedUser,
+                  inviterEmail: data.inviterEmail,
+                  billingGroup: data.billingGroup,
+                  xloudId: data.xloudId
+                });
+              }
+            }
+          }
+
+          // Clean up URL
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        } catch (error) {
+          console.error("[Dashboard] Error verifying session:", error);
+        }
+      }
+    };
+
+    checkSessionStatus();
+  }, []);
+
   // Show loading state while checking authentication
   if (isLoading) {
     return (
