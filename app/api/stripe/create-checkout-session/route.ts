@@ -84,7 +84,8 @@ export async function POST(request: Request) {
       hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
       appUrl: process.env.NEXT_PUBLIC_APP_URL,
       proPriceId: process.env.STRIPE_PRO_PRICE_ID,
-      proPlusPriceId: process.env.STRIPE_PRO_PLUS_PRICE_ID
+      proPlusPriceId: process.env.STRIPE_PRO_PLUS_PRICE_ID,
+      plan: plan
     });
 
     // Validate price IDs
@@ -97,9 +98,11 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log('[Checkout] Using price ID:', priceId);
+
     // Create a checkout session
     try {
-      const session = await stripeInstance.checkout.sessions.create({
+      const sessionConfig: Stripe.Checkout.SessionCreateParams = {
         payment_method_types: ['card'],
         line_items: [
           {
@@ -115,7 +118,17 @@ export async function POST(request: Request) {
           plan: plan
         },
         customer_email: decodedToken.email || undefined,
+      };
+
+      console.log('[Checkout] Creating session with config:', {
+        ...sessionConfig,
+        line_items: sessionConfig.line_items?.map(item => ({
+          ...item,
+          price: item.price
+        })) || []
       });
+
+      const session = await stripeInstance.checkout.sessions.create(sessionConfig);
 
       console.log('[Checkout] Session created:', {
         sessionId: session.id,
