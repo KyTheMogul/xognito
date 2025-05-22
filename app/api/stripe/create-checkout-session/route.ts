@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     });
 
     // Validate price IDs
-    const priceId = plan === 'pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID;
+    const priceId = plan === 'Pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID;
     if (!priceId) {
       console.error('[Checkout] Missing price ID for plan:', plan);
       return NextResponse.json(

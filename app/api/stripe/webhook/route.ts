@@ -61,6 +61,13 @@ export async function POST(req: Request) {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       const plan = subscription.items.data[0].price.nickname || 'pro';
 
+      // Format plan name consistently
+      const formattedPlan = plan.toLowerCase() === 'pro' ? 'Pro' : 
+                            plan.toLowerCase() === 'pro_plus' ? 'Pro-Plus' : 
+                            'Free';
+
+      console.log('[Webhook] Formatted plan name:', formattedPlan);
+
       // Update the user's plan in Firestore
       const userRef = adminDb.collection('users').doc(userId);
       const userDoc = await userRef.get();
@@ -74,7 +81,7 @@ export async function POST(req: Request) {
 
       // Update user document with new plan
       await userRef.update({
-        plan: plan,
+        plan: formattedPlan,
         subscriptionStatus: 'active',
         stripeCustomerId: customerId,
         subscriptionId: subscriptionId,
@@ -84,7 +91,7 @@ export async function POST(req: Request) {
       // Create or update billing document
       const billingRef = userRef.collection('settings').doc('billing');
       const billingData = {
-        plan,
+        plan: formattedPlan,
         status: 'active',
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscriptionId,

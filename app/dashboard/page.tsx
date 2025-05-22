@@ -404,7 +404,7 @@ export default function Dashboard() {
   const listenTimeoutRef = useRef<any>(null);
   const [activeMemories, setActiveMemories] = useState<NotificationMemory[]>([]);
   const [userSubscription, setUserSubscription] = useState<{
-    plan: 'free' | 'pro' | 'pro_plus';
+    plan: 'Free' | 'Pro' | 'Pro-Plus';
     isActive: boolean;
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
@@ -1025,7 +1025,7 @@ ${memoryContext}`
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserSubscription({
-              plan: userData.plan || 'free',
+              plan: userData.plan || 'Free',
               isActive: userData.subscriptionStatus === 'active',
               stripeCustomerId: userData.stripeCustomerId,
               stripeSubscriptionId: userData.subscriptionId,
@@ -1034,7 +1034,7 @@ ${memoryContext}`
             });
           } else {
             setUserSubscription({
-              plan: 'free',
+              plan: 'Free',
               isActive: false,
               status: 'canceled',
               billingHistory: []
@@ -1044,7 +1044,7 @@ ${memoryContext}`
       } catch (error) {
         console.error('Error fetching subscription:', error);
         setUserSubscription({
-          plan: 'free',
+          plan: 'Free',
           isActive: false,
           status: 'canceled',
           billingHistory: []
@@ -1055,7 +1055,7 @@ ${memoryContext}`
     fetchSubscription();
   }, [auth.currentUser]);
 
-  const handlePlanChange = async (newPlan: 'pro' | 'pro-plus') => {
+  const handlePlanChange = async (newPlan: 'Pro' | 'Pro-Plus') => {
     try {
       setIsChangingPlan(true);
       const user = auth.currentUser;
@@ -3161,7 +3161,7 @@ When responding:
                   <li>Additional users: +30%/user</li>
                 </ul>
                 <button 
-                  className="bg-zinc-700 text-zinc-400 font-semibold px-4 py-2 rounded-lg cursor-not-allowed"
+                  className={`${userSubscription?.plan === 'Pro-Plus' ? 'border-green-500' : 'border-white'} bg-zinc-700 text-zinc-400 font-semibold px-4 py-2 rounded-lg cursor-not-allowed`}
                   disabled={true}
                 >
                   Coming Soon
