@@ -2180,7 +2180,7 @@ When responding:
       )}
       {/* Sidebar */}
       <div
-        className={`fixed top-4 left-0 h-[calc(100%-2rem)] w-64 bg-black border border-white rounded-2xl shadow-lg z-40 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-80'}`}
+        className={`fixed top-4 left-0 h-[calc(100%-2rem)] w-64 bg-black border border-white rounded-2xl shadow-lg z-50 transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-80'}`}
         style={{ boxShadow: sidebarOpen ? '0 4px 32px 0 rgba(0,0,0,0.5)' : undefined }}
       >
         <div className="flex items-center justify-between p-6 border-b border-zinc-800 rounded-t-2xl">
@@ -2513,13 +2513,10 @@ When responding:
       )}
       {/* Chat input at bottom */}
       <form 
-        className="fixed bottom-0 left-0 w-full flex justify-center pb-6 z-40 bg-transparent" 
-        onSubmit={(e) => {
-          console.log("[Dashboard] Form submitted");
-          handleSend(e);
-        }}
+        onSubmit={handleSend}
+        className="w-full max-w-3xl mx-auto px-4 md:px-0 relative z-40"
       >
-        <div className="flex items-center w-full max-w-2xl bg-black border border-white rounded-full px-4 py-2 gap-2 shadow-lg">
+        <div className="flex items-center w-full max-w-[280px] md:max-w-2xl bg-black border border-white rounded-full px-3 md:px-4 py-1.5 md:py-2 gap-2 shadow-lg">
           {/* Upload icon */}
           <button
             type="button"
@@ -2527,7 +2524,7 @@ When responding:
             onClick={() => fileInputRef.current?.click()}
             aria-label="Upload file"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l9.19-9.19" /></svg>
+            <svg width="18" height="18" className="md:w-[22px] md:h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l9.19-9.19" /></svg>
             <input
               ref={fileInputRef}
               type="file"
@@ -2540,20 +2537,16 @@ When responding:
           {/* Input field */}
           <input
             type="text"
-            placeholder="Type a message..."
-            className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400 text-base px-2"
             value={input}
-            onChange={(e) => {
-              console.log("[Dashboard] Input changed:", e.target.value);
-              setInput(e.target.value);
-            }}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400 text-sm md:text-base px-2"
           />
-          {/* Send button: only show if input is not empty */}
+          {/* Send button */}
           {input.trim() && (
-            <button 
-              type="submit" 
-              className="ml-2 bg-white text-black font-semibold rounded-full px-5 py-2 text-sm shadow hover:bg-zinc-100 transition-colors focus:outline-none"
-              onClick={() => console.log("[Dashboard] Send button clicked")}
+            <button
+              type="submit"
+              className="bg-white text-black font-semibold rounded-full px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm shadow hover:bg-zinc-100 transition-colors"
             >
               Send
             </button>
@@ -2561,11 +2554,11 @@ When responding:
           {/* Microphone icon button */}
           <button
             type="button"
-            className={`ml-2 ${listening ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'} transition-colors p-2 rounded-full focus:outline-none flex items-center justify-center`}
+            className={`${listening ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'} transition-colors p-1.5 md:p-2 rounded-full focus:outline-none flex items-center justify-center`}
             aria-label="Record voice message"
             onClick={handleMicClick}
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" className="md:w-[22px] md:h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="9" y="2" width="6" height="12" rx="3"/>
               <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
               <line x1="12" y1="19" x2="12" y2="22"/>
