@@ -2417,19 +2417,19 @@ When responding:
           <div className="flex-1 overflow-y-auto pr-2 flex flex-col-reverse hide-scrollbar" style={{ height: '100%' }}>
             <div ref={chatEndRef} />
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center space-y-8">
-                <h2 className="text-2xl font-bold text-white/80">Welcome to Xognito</h2>
-                <p className="text-white/60 text-center max-w-md">
+              <div className="h-full flex flex-col items-center justify-center space-y-6 md:space-y-8 px-4">
+                <h2 className="text-xl md:text-2xl font-bold text-white/80">Welcome to Xognito</h2>
+                <p className="text-white/60 text-center max-w-md text-sm md:text-base">
                   Your AI companion with memory capabilities. Try asking something or use one of these examples:
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl px-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 w-full max-w-2xl">
                   {examplePrompts.map((prompt, index) => (
                     <button
                       key={index}
                       onClick={() => handleExampleClick(prompt)}
-                      className="p-4 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors border border-white/10 hover:border-white/20"
+                      className="p-3 md:p-4 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors border border-white/10 hover:border-white/20"
                     >
-                      <p className="text-white/80">{prompt}</p>
+                      <p className="text-white/80 text-sm md:text-base">{prompt}</p>
                     </button>
                   ))}
                 </div>
