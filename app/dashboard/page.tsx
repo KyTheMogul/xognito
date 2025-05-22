@@ -1048,11 +1048,15 @@ ${memoryContext}`
         userId: user.uid
       });
 
+      // Get the current user's ID token
+      const idToken = await user.getIdToken();
+
       // Create Stripe Checkout Session
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           plan: newPlan,
