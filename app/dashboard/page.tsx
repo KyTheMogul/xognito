@@ -835,7 +835,7 @@ ${memoryContext}`
       }
 
       // After successful message send, increment counter for free plan
-      if (userSubscription?.plan === 'free') {
+      if (userSubscription?.plan === 'Free') {
         await incrementMessageCount(user.uid);
         const messageCheck = await canSendMessage(user.uid);
         setUsageStats(prev => ({
@@ -1886,7 +1886,7 @@ When responding:
       )}
 
       {/* Show Xognito branding for free plan */}
-      {userSubscription?.plan === 'free' && (
+      {userSubscription?.plan === 'Free' && (
         <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 text-zinc-400 text-xs">
           Powered by Xognito
         </div>
@@ -1895,7 +1895,7 @@ When responding:
       {/* Profile picture and add family button in top right */}
       {!activeGroupId && (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-3" ref={profileRef}>
-          {userSubscription?.plan === 'free' ? (
+          {userSubscription?.plan === 'Free' ? (
             <Button
               onClick={() => setSubscriptionOpen(true)}
               className="bg-transparent text-white hover:bg-white/10 font-semibold rounded-full px-4 py-2 text-sm border border-zinc-400/50"
@@ -2709,7 +2709,7 @@ When responding:
                                userSubscription?.status === 'past_due' ? 'Past Due' : 'Inactive'}
                             </p>
                           </div>
-                          {userSubscription?.plan !== 'free' && (
+                          {userSubscription?.plan !== 'Free' && (
                             <Button
                               className="bg-transparent border border-zinc-700 text-white hover:bg-zinc-800"
                               onClick={() => {
@@ -3080,7 +3080,7 @@ When responding:
             <h2 className="text-2xl font-bold mb-8 text-white text-center mt-12">Manage Subscription</h2>
             <div className="flex flex-row gap-8 justify-center items-stretch mb-6 mt-20">
               {/* Free Plan Card */}
-              <div className={`rounded-2xl border ${userSubscription?.plan === 'free' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
+              <div className={`rounded-2xl border ${userSubscription?.plan === 'Free' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
                 <div className="font-bold text-xl mb-1 tracking-wide">Free</div>
                 <div className="text-lg mb-1 font-semibold">$0/month</div>
                 <div className="text-xs text-zinc-300 mb-3 italic">Try it out with no pressure.</div>
@@ -3094,59 +3094,39 @@ When responding:
                   <li>Xognito branding shown</li>
                 </ul>
                 <button 
-                  className={`${userSubscription?.plan === 'free' ? 'bg-green-500 cursor-not-allowed' : 'bg-white hover:bg-zinc-100'} text-black font-semibold px-4 py-2 rounded-lg transition-colors`}
-                  disabled={userSubscription?.plan === 'free'}
+                  className={`${userSubscription?.plan === 'Free' ? 'bg-green-500 cursor-not-allowed' : 'bg-white hover:bg-zinc-100'} text-black font-semibold px-4 py-2 rounded-lg transition-colors`}
+                  disabled={userSubscription?.plan === 'Free'}
                 >
-                  {userSubscription?.plan === 'free' ? 'Current Plan' : 'Change Plan'}
+                  {userSubscription?.plan === 'Free' ? 'Current Plan' : 'Change Plan'}
                 </button>
               </div>
               {/* Pro Plan Card */}
-              <div className={`relative rounded-2xl border ${userSubscription?.plan === 'pro' ? 'border-green-500' : 'border-black'} bg-gradient-to-b from-white to-zinc-100 p-12 flex flex-col items-center shadow-2xl text-black font-semibold min-w-[320px] max-w-[400px] scale-110 z-10 flex-1 transition-transform duration-200 hover:scale-115 hover:shadow-[0_8px_40px_0_rgba(0,0,0,0.18)]`}>
+              <div className={`relative rounded-2xl border ${userSubscription?.plan === 'Pro' ? 'border-green-500' : 'border-black'} bg-gradient-to-b from-white to-zinc-100 p-12 flex flex-col items-center shadow-2xl text-black font-semibold min-w-[320px] max-w-[400px] scale-110 z-10 flex-1 transition-transform duration-200 hover:scale-115 hover:shadow-[0_8px_40px_0_rgba(0,0,0,0.18)]`}>
                 {/* Most Popular Badge */}
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-black text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg tracking-wide border border-white">Most Popular</div>
                 <div className="font-bold text-2xl mb-1 tracking-wide">Pro</div>
                 <div className="text-xl mb-1 font-semibold">$12/month</div>
                 <div className="text-sm text-zinc-500 mb-4 italic">Unlock your assistant's full power.</div>
-                {(() => {
-                  const features = [
-                    "Unlimited AI conversations",
-                    "Assistant remembers your goals, notes, and context",
-                    "Upload and analyze files, screenshots, and documents",
-                    "Real-time web search built in",
-                    "Create and use up to 10 custom tools (Taps)",
-                    "Save, revisit, and download chat history",
-                    "Join or create group chats with others",
-                    "Customize your AI's name and personality",
-                    "Use Xognito even offline",
-                    "No branding — fully private interface",
-                    "Add another user for 20% extra per month",
-                  ];
-                  const shown = proFeaturesExpanded ? features : features.slice(0, 3);
-                  return (
-                    <>
-                      <ul className="text-base text-zinc-700 mb-2 space-y-2 text-left w-full max-w-[250px] font-normal">
-                        {shown.map((f, i) => <li key={i}>{f}</li>)}
-                      </ul>
-                      <button
-                        type="button"
-                        className="text-xs text-blue-600 hover:underline mb-6"
-                        onClick={() => setProFeaturesExpanded(v => !v)}
-                      >
-                        {proFeaturesExpanded ? 'Show less' : 'Show more'}
-                      </button>
-                    </>
-                  );
-                })()}
+                <ul className="text-sm text-zinc-500 mb-6 space-y-2 text-left w-full max-w-[210px]">
+                  <li>Unlimited AI conversations</li>
+                  <li>AI memory and context</li>
+                  <li>File upload + analysis</li>
+                  <li>Web search + live data</li>
+                  <li>Customize assistant</li>
+                  <li>Save conversations</li>
+                  <li>No branding</li>
+                  <li>Add extra user (+20%)</li>
+                </ul>
                 <button 
-                  className={`${userSubscription?.plan === 'pro' ? 'bg-green-500 cursor-not-allowed' : 'bg-black hover:bg-zinc-900'} text-white font-semibold px-7 py-3 rounded-lg transition-colors text-base shadow`}
-                  disabled={userSubscription?.plan === 'pro'}
-                  onClick={() => handlePlanChange('pro')}
+                  className={`${userSubscription?.plan === 'Pro' ? 'bg-green-500 cursor-not-allowed' : 'bg-black hover:bg-zinc-900'} text-white font-semibold px-7 py-3 rounded-lg transition-colors text-base shadow`}
+                  disabled={userSubscription?.plan === 'Pro'}
+                  onClick={() => handlePlanChange('Pro')}
                 >
-                  {userSubscription?.plan === 'pro' ? 'Current Plan' : 'Change Plan'}
+                  {userSubscription?.plan === 'Pro' ? 'Current Plan' : 'Change Plan'}
                 </button>
               </div>
               {/* Pro Plus Plan Card */}
-              <div className={`rounded-2xl border ${userSubscription?.plan === 'pro_plus' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
+              <div className={`rounded-2xl border ${userSubscription?.plan === 'Pro-Plus' ? 'border-green-500' : 'border-white'} bg-gradient-to-b from-black to-zinc-900 p-8 flex flex-col items-center shadow-lg text-white min-w-[280px] max-w-[340px] flex-1 transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:border-zinc-300`}>
                 <div className="font-bold text-xl mb-1 tracking-wide">Pro Plus</div>
                 <div className="text-lg mb-1 font-semibold">$25/month</div>
                 <div className="text-xs text-zinc-300 mb-3 italic">Coming Soon</div>
