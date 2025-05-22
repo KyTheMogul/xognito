@@ -124,7 +124,8 @@ export async function POST(request: Request) {
           {
             coupon: promoCode
           }
-        ] : undefined
+        ] : undefined,
+        allow_promotion_codes: true
       };
 
       console.log('[Checkout] Creating session with config:', {
