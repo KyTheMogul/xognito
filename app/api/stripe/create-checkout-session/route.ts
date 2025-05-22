@@ -67,13 +67,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { plan } = await request.json();
+    const { plan, promoCode } = await request.json();
     const userId = decodedToken.uid;
 
     console.log('[Checkout] User details:', {
       uid: userId,
       email: decodedToken.email,
-      plan: plan
+      plan: plan,
+      promoCode: promoCode
     });
 
     // Log environment variables (without exposing sensitive data)
@@ -115,9 +116,15 @@ export async function POST(request: Request) {
         cancel_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
         metadata: {
           userId: userId,
-          plan: plan
+          plan: plan,
+          promoCode: promoCode || undefined
         },
         customer_email: decodedToken.email || undefined,
+        discounts: promoCode ? [
+          {
+            coupon: promoCode
+          }
+        ] : undefined
       };
 
       console.log('[Checkout] Creating session with config:', {

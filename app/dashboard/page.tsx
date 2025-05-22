@@ -71,6 +71,7 @@ import 'cropperjs/dist/cropper.css';
 import { initializeUserSettings } from '../lib/settings';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'react-toastify';
 
 const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -489,6 +490,9 @@ export default function Dashboard() {
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
 
   const { handleAuth } = useAuth();
+
+  const [isChangingPlan, setIsChangingPlan] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
 
   // Update search filtering
   useEffect(() => {
@@ -1035,24 +1039,18 @@ ${memoryContext}`
     fetchSubscription();
   }, [auth.currentUser]);
 
-  const handlePlanChange = async (newPlan: 'pro' | 'pro_plus') => {
-    const user = auth.currentUser;
-    if (!user) {
-      console.error('[Dashboard] No user found');
-      return;
-    }
-
+  const handlePlanChange = async (newPlan: 'pro' | 'pro-plus') => {
     try {
-      console.log('[Dashboard] Initiating plan change:', {
-        plan: newPlan,
-        userId: user.uid
-      });
+      setIsChangingPlan(true);
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error('You must be logged in to change plans');
+        return;
+      }
 
-      // Get the current user's ID token
       const idToken = await user.getIdToken();
-      console.log('[Dashboard] Got ID token');
+      console.log('[Dashboard] Got ID token for user:', user.uid);
 
-      // Create Stripe Checkout Session
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -1061,29 +1059,26 @@ ${memoryContext}`
         },
         body: JSON.stringify({
           plan: newPlan,
-          userId: user.uid
-        }),
+          promoCode: promoCode.trim() || undefined
+        })
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const errorData = await response.json();
         console.error('[Dashboard] Checkout session creation failed:', {
           status: response.status,
           statusText: response.statusText,
-          error: data
+          error: errorData
         });
-        throw new Error(data.error || response.statusText);
+        throw new Error(errorData.error || 'Failed to create checkout session');
       }
 
-      const { sessionId } = data;
-      console.log('[Dashboard] Checkout session created:', { sessionId });
+      const { sessionId } = await response.json();
+      console.log('[Dashboard] Created checkout session:', sessionId);
 
-      // Redirect to Stripe Checkout
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
       if (!stripe) {
-        console.error('[Dashboard] Stripe failed to load');
-        throw new Error('Stripe failed to load');
+        throw new Error('Failed to load Stripe');
       }
 
       const { error } = await stripe.redirectToCheckout({ sessionId });
@@ -1093,8 +1088,9 @@ ${memoryContext}`
       }
     } catch (error: any) {
       console.error('[Dashboard] Error initiating plan change:', error);
-      // Show error notification to user
-      setError(error.message || 'Failed to create checkout session. Please try again.');
+      toast.error(error.message || 'Failed to change plan');
+    } finally {
+      setIsChangingPlan(false);
     }
   };
 
