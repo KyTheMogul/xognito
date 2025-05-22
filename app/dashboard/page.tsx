@@ -711,7 +711,60 @@ export default function Dashboard() {
     }
   };
 
-  // Handle sending a message
+  // Function to generate conversation title using AI
+  const generateConversationTitle = async (messages: MessageWithId[], userId: string): Promise<string> => {
+    try {
+      // Get the last few messages for context (up to 5)
+      const recentMessages = messages.slice(-5);
+      const conversationContext = recentMessages.map(msg => 
+        `${msg.sender === 'user' ? 'User' : 'AI'}: ${msg.text}`
+      ).join('\n');
+
+      // Create messages for the AI to generate a title
+      const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
+        {
+          role: 'system',
+          content: `You are a conversation title generator. Your task is to create a concise, meaningful title (max 30 characters) that summarizes the main topic or theme of the conversation. The title should be:
+1. Clear and descriptive
+2. Professional and clean
+3. No emojis or special characters
+4. Focus on the main subject or purpose
+5. Be specific enough to distinguish from other conversations`
+        },
+        {
+          role: 'user',
+          content: `Generate a title for this conversation:\n${conversationContext}`
+        }
+      ];
+
+      let title = '';
+      await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+        title += chunk;
+      });
+
+      // Clean up the title
+      title = title.trim()
+        .replace(/["']/g, '') // Remove quotes
+        .replace(/^[^a-zA-Z0-9]+/, '') // Remove leading non-alphanumeric
+        .replace(/[^a-zA-Z0-9]+$/, '') // Remove trailing non-alphanumeric
+        .slice(0, 30); // Ensure max length
+
+      // If title is too short or empty, use a fallback
+      if (title.length < 3) {
+        const date = new Date();
+        title = `Chat ${date.toLocaleDateString()}`;
+      }
+
+      return title;
+    } catch (error) {
+      console.error("[Dashboard] Error generating conversation title:", error);
+      // Fallback to date-based title
+      const date = new Date();
+      return `Chat ${date.toLocaleDateString()}`;
+    }
+  };
+
+  // Modify handleSend to use the new title generator
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() && uploads.length === 0) return;
@@ -794,10 +847,15 @@ export default function Dashboard() {
 
       // If this is the first message, generate a title
       if (messages.length === 0) {
-        console.log("[Dashboard] First message, updating conversation title");
-        const title = input.length > 30 ? input.substring(0, 30) + '...' : input;
+        console.log("[Dashboard] First message, generating conversation title");
+        const messageWithId: MessageWithId = {
+          ...userMessage,
+          id: userMessageId,
+          timestamp: Timestamp.now()
+        };
+        const title = await generateConversationTitle([messageWithId], user.uid);
         await updateConversationTitle(user.uid, activeConversationId!, title);
-        console.log("[Dashboard] Conversation title updated");
+        console.log("[Dashboard] Conversation title updated:", title);
       }
 
       // Check if this is an image generation request
