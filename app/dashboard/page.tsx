@@ -1726,7 +1726,8 @@ When responding:
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
       setIsAuthenticated(!!user);
-      
+      setIsLoading(false);
+
       if (!user) {
         // Check if we have a token in the URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -1746,7 +1747,18 @@ When responding:
         console.log("[Dashboard] No authenticated user and no token, redirecting to home");
         router.push('/');
       } else {
-        setIsLoading(false);
+        // Reset all user-specific state when user changes
+        setConversations([]);
+        setMessages([]);
+        setUserSubscription(null);
+        setUploads([]);
+        setActiveConversationId(null);
+        setLinkedUsers([]);
+        setUser(user);
+        setDisplayName(user.displayName || '');
+        setEmail(user.email || '');
+        setPhoneNumber(user.phoneNumber || '');
+        // Optionally, reset other state as needed
       }
     });
 
