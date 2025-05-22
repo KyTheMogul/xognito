@@ -494,6 +494,118 @@ export default function Dashboard() {
   const [isChangingPlan, setIsChangingPlan] = useState(false);
   const [promoCode, setPromoCode] = useState('');
 
+  const [examplePrompts, setExamplePrompts] = useState([
+    "What do you remember about my work schedule?",
+    "Can you help me learn more about AI?",
+    "Remember that I prefer to work in the morning",
+    "What are my current learning goals?"
+  ]);
+
+  // Function to generate personalized prompts based on memories
+  const generatePersonalizedPrompts = async (userId: string) => {
+    try {
+      // Get recent memories
+      const memories = await getRelevantMemories(userId, "recent memories");
+      
+      if (memories.length === 0) {
+        // Keep default prompts if no memories
+        return;
+      }
+
+      // Define prompt templates for different memory types
+      const promptTemplates = {
+        short: [
+          "What do you remember about {memory}?",
+          "Can you remind me about {memory}?",
+          "Tell me what you know about {memory}",
+          "What details do you have about {memory}?",
+          "I'd like to know more about {memory}"
+        ],
+        relationship: [
+          "Can you tell me more about {memory}?",
+          "What's your understanding of {memory}?",
+          "How do you interpret {memory}?",
+          "What context do you have about {memory}?",
+          "Can you elaborate on {memory}?"
+        ],
+        deep: [
+          "What insights do you have about {memory}?",
+          "What patterns have you noticed regarding {memory}?",
+          "How do you analyze {memory}?",
+          "What conclusions can you draw about {memory}?",
+          "What deeper understanding do you have of {memory}?"
+        ]
+      };
+
+      // Function to get random template
+      const getRandomTemplate = (type: 'short' | 'relationship' | 'deep') => {
+        const templates = promptTemplates[type];
+        return templates[Math.floor(Math.random() * templates.length)];
+      };
+
+      // Generate prompts based on memory types with variety
+      const personalizedPrompts = memories.map((memory: NotificationMemory) => {
+        const template = getRandomTemplate(memory.type);
+        const memoryText = memory.summary.toLowerCase();
+        
+        // Add some variety to the memory text
+        let processedMemory = memoryText;
+        if (Math.random() > 0.5) {
+          // Sometimes use a shorter version of the memory
+          processedMemory = memoryText.split(' ').slice(0, 3).join(' ');
+        }
+
+        return template.replace('{memory}', processedMemory);
+      }).filter(Boolean) as string[];
+
+      // Mix in some general prompts if we have enough memories
+      if (memories.length >= 3) {
+        const generalPrompts = [
+          "What patterns have you noticed in our conversations?",
+          "Can you summarize what you've learned about me?",
+          "What topics do we discuss most often?",
+          "What are my main interests based on our chats?",
+          "What goals have I mentioned to you?"
+        ];
+        
+        // Add 1-2 general prompts
+        const numGeneralPrompts = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < numGeneralPrompts; i++) {
+          const randomIndex = Math.floor(Math.random() * generalPrompts.length);
+          personalizedPrompts.push(generalPrompts[randomIndex]);
+        }
+      }
+
+      // Shuffle the prompts
+      const shuffledPrompts = personalizedPrompts
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 4); // Keep only 4 prompts
+
+      // If we have enough personalized prompts, use them
+      if (shuffledPrompts.length >= 2) {
+        setExamplePrompts(shuffledPrompts);
+      }
+    } catch (error) {
+      console.error("[Dashboard] Error generating personalized prompts:", error);
+    }
+  };
+
+  // Update prompts periodically
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    // Generate personalized prompts on mount
+    generatePersonalizedPrompts(user.uid);
+
+    // Update prompts every 24 hours
+    const interval = setInterval(() => {
+      generatePersonalizedPrompts(user.uid);
+    }, 24 * 60 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [auth.currentUser]);
+
   // Update search filtering
   useEffect(() => {
     if (!search.trim()) {
@@ -518,25 +630,25 @@ export default function Dashboard() {
     setFilteredGroups(filteredGroupsList);
   }, [search, conversations, userGroups]);
 
-  const examplePrompts = [
-    "What do you remember about my work schedule?",
-    "Can you help me learn more about AI?",
-    "Remember that I prefer to work in the morning",
-    "What are my current learning goals?"
-  ];
+  const handleExampleClick = async (prompt: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
 
-  const handleExampleClick = (prompt: string) => {
-    setInput(prompt);
-    // Remove empty state by triggering a small state change
-    setMessages([{ 
-      id: 'temp', 
-      sender: 'ai', 
-      text: '', 
-      timestamp: Timestamp.now() 
-    }]);
-    // Immediately send the message to the AI
-    const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
-    handleSend(syntheticEvent);
+    try {
+      // Create new conversation first
+      const newConversationId = await createConversation(user.uid);
+      setActiveConversationId(newConversationId);
+      
+      // Set input and clear messages
+      setInput(prompt);
+      setMessages([]);
+      
+      // Send the message
+      const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+      handleSend(syntheticEvent);
+    } catch (error) {
+      console.error("[Dashboard] Error in handleExampleClick:", error);
+    }
   };
 
   // Real-time conversations
@@ -559,10 +671,19 @@ export default function Dashboard() {
   // Real-time messages
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user || !activeConversationId) return;
+    if (!user) return;
+
+    // If no active conversation, don't set up listener
+    if (!activeConversationId) {
+      setMessages([]);
+      return;
+    }
 
     const unsubscribe = listenToMessages(user.uid, activeConversationId, (msgs) => {
-      setMessages(msgs);
+      // Only update messages if we have an active conversation
+      if (activeConversationId) {
+        setMessages(msgs);
+      }
     });
 
     return () => unsubscribe();
@@ -1024,7 +1145,7 @@ ${memoryContext}`
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setUserSubscription({
+          setUserSubscription({
               plan: userData.plan || 'Free',
               isActive: userData.subscriptionStatus === 'active',
               stripeCustomerId: userData.stripeCustomerId,
@@ -1035,10 +1156,10 @@ ${memoryContext}`
           } else {
             setUserSubscription({
               plan: 'Free',
-              isActive: false,
-              status: 'canceled',
-              billingHistory: []
-            });
+            isActive: false,
+            status: 'canceled',
+            billingHistory: []
+          });
           }
         }
       } catch (error) {
@@ -1058,11 +1179,11 @@ ${memoryContext}`
   const handlePlanChange = async (newPlan: 'Pro' | 'Pro-Plus') => {
     try {
       setIsChangingPlan(true);
-      const user = auth.currentUser;
-      if (!user) {
+    const user = auth.currentUser;
+    if (!user) {
         toast.error('You must be logged in to change plans');
-        return;
-      }
+      return;
+    }
 
       const idToken = await user.getIdToken();
       console.log('[Dashboard] Got ID token for user:', user.uid);
@@ -1727,7 +1848,7 @@ When responding:
       console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
       setIsAuthenticated(!!user);
       setIsLoading(false);
-
+      
       if (!user) {
         // Check if we have a token in the URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -1802,7 +1923,7 @@ When responding:
                 });
 
                 // Update billing document
-                const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+              const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
                 await setDoc(billingRef, {
                   plan: metadata.plan || 'pro',
                   status: 'active',
@@ -1822,24 +1943,24 @@ When responding:
                 }, { merge: true });
 
                 // Refresh subscription data
-                const billingDoc = await getDoc(billingRef);
-                if (billingDoc.exists()) {
-                  const data = billingDoc.data();
-                  setUserSubscription({
-                    plan: data.plan,
-                    isActive: data.status === 'active' || data.status === 'trialing',
-                    stripeCustomerId: data.stripeCustomerId,
-                    stripeSubscriptionId: data.stripeSubscriptionId,
-                    startDate: data.startDate,
-                    nextBillingDate: data.nextBillingDate,
-                    trialEndsAt: data.trialEndsAt,
-                    status: data.status,
-                    billingHistory: data.billingHistory || [],
-                    isInvitedUser: data.isInvitedUser,
-                    inviterEmail: data.inviterEmail,
-                    billingGroup: data.billingGroup,
-                    xloudId: data.xloudId
-                  });
+              const billingDoc = await getDoc(billingRef);
+              if (billingDoc.exists()) {
+                const data = billingDoc.data();
+                setUserSubscription({
+                  plan: data.plan,
+                  isActive: data.status === 'active' || data.status === 'trialing',
+                  stripeCustomerId: data.stripeCustomerId,
+                  stripeSubscriptionId: data.stripeSubscriptionId,
+                  startDate: data.startDate,
+                  nextBillingDate: data.nextBillingDate,
+                  trialEndsAt: data.trialEndsAt,
+                  status: data.status,
+                  billingHistory: data.billingHistory || [],
+                  isInvitedUser: data.isInvitedUser,
+                  inviterEmail: data.inviterEmail,
+                  billingGroup: data.billingGroup,
+                  xloudId: data.xloudId
+                });
                 }
               }
             }
@@ -3128,8 +3249,8 @@ When responding:
                   <li>Save conversations</li>
                   <li>No branding</li>
                   <li>Add extra user (+20%)</li>
-                </ul>
-                <button 
+                      </ul>
+                      <button
                   className={`${userSubscription?.plan === 'Pro' ? 'bg-green-500 cursor-not-allowed' : 'bg-black hover:bg-zinc-900'} text-white font-semibold px-7 py-3 rounded-lg transition-colors text-base shadow`}
                   disabled={userSubscription?.plan === 'Pro'}
                   onClick={() => handlePlanChange('Pro')}
