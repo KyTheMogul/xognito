@@ -82,8 +82,20 @@ export async function POST(request: Request) {
       hasProPriceId: !!process.env.STRIPE_PRO_PRICE_ID,
       hasProPlusPriceId: !!process.env.STRIPE_PRO_PLUS_PRICE_ID,
       hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
-      appUrl: process.env.NEXT_PUBLIC_APP_URL
+      appUrl: process.env.NEXT_PUBLIC_APP_URL,
+      proPriceId: process.env.STRIPE_PRO_PRICE_ID,
+      proPlusPriceId: process.env.STRIPE_PRO_PLUS_PRICE_ID
     });
+
+    // Validate price IDs
+    const priceId = plan === 'pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID;
+    if (!priceId) {
+      console.error('[Checkout] Missing price ID for plan:', plan);
+      return NextResponse.json(
+        { error: 'Invalid plan configuration' },
+        { status: 500 }
+      );
+    }
 
     // Create a checkout session
     try {
@@ -91,7 +103,7 @@ export async function POST(request: Request) {
         payment_method_types: ['card'],
         line_items: [
           {
-            price: plan === 'pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID,
+            price: priceId,
             quantity: 1,
           },
         ],
@@ -110,7 +122,8 @@ export async function POST(request: Request) {
         customerId: session.customer,
         metadata: session.metadata,
         successUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`
+        cancelUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+        priceId: priceId
       });
 
       return NextResponse.json({ sessionId: session.id });
