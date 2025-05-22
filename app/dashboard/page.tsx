@@ -2422,7 +2422,7 @@ When responding:
                 <p className="text-white/60 text-center max-w-md text-sm md:text-base">
                   Your AI companion with memory capabilities. Try asking something or use one of these examples:
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 w-full max-w-2xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 w-full max-w-[280px] md:max-w-2xl">
                   {examplePrompts.map((prompt, index) => (
                     <button
                       key={index}
