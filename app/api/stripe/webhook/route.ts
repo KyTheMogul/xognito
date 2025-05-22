@@ -24,7 +24,8 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const signature = headers().get('stripe-signature');
+  const headersList = await headers();
+  const signature = headersList.get('stripe-signature');
 
   if (!signature) {
     console.error('No Stripe signature found in headers');
@@ -81,18 +82,19 @@ export async function POST(req: Request) {
       });
 
       // Create or update billing document
-      const billingRef = userRef.collection('billing').doc('subscription');
+      const billingRef = userRef.collection('settings').doc('billing');
       const billingData = {
         plan,
         status: 'active',
         stripeCustomerId: customerId,
-        subscriptionId: subscriptionId,
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        stripeSubscriptionId: subscriptionId,
+        startDate: new Date(subscription.current_period_start * 1000).toISOString(),
+        nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
+        trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
+        canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
         billingHistory: FieldValue.arrayUnion({
-          date: new Date(),
+          date: new Date().toISOString(),
           type: 'subscription_created',
           amount: subscription.items.data[0].price.unit_amount! / 100,
           currency: subscription.currency,
@@ -152,7 +154,7 @@ export async function POST(req: Request) {
       });
 
       // Update the billing document
-      const billingRef = adminDb.collection('users').doc(userId).collection('billing').doc('subscription');
+      const billingRef = adminDb.collection('users').doc(userId).collection('settings').doc('billing');
       await billingRef.set({
         status: subscription.status,
         currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
@@ -205,12 +207,12 @@ export async function POST(req: Request) {
       });
 
       // Update the billing document
-      const billingRef = adminDb.collection('users').doc(userId).collection('billing').doc('subscription');
+      const billingRef = adminDb.collection('users').doc(userId).collection('settings').doc('billing');
       await billingRef.set({
         plan: 'free',
         status: 'canceled',
         stripeCustomerId: null,
-        subscriptionId: null,
+        stripeSubscriptionId: null,
         currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
         cancelAtPeriodEnd: true,
         updatedAt: new Date().toISOString()
