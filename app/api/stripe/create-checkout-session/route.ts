@@ -76,36 +76,63 @@ export async function POST(request: Request) {
       plan: plan
     });
 
+    // Log environment variables (without exposing sensitive data)
+    console.log('[Checkout] Environment check:', {
+      hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+      hasProPriceId: !!process.env.STRIPE_PRO_PRICE_ID,
+      hasProPlusPriceId: !!process.env.STRIPE_PRO_PLUS_PRICE_ID,
+      hasAppUrl: !!process.env.NEXT_PUBLIC_APP_URL,
+      appUrl: process.env.NEXT_PUBLIC_APP_URL
+    });
+
     // Create a checkout session
-    const session = await stripeInstance.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: plan === 'pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID,
-          quantity: 1,
+    try {
+      const session = await stripeInstance.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price: plan === 'pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+        metadata: {
+          userId: userId,
+          plan: plan
         },
-      ],
-      mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
-      metadata: {
-        userId: userId,
-        plan: plan
-      },
-      customer_email: decodedToken.email || undefined,
-    });
+        customer_email: decodedToken.email || undefined,
+      });
 
-    console.log('[Checkout] Session created:', {
-      sessionId: session.id,
-      customerId: session.customer,
-      metadata: session.metadata
-    });
+      console.log('[Checkout] Session created:', {
+        sessionId: session.id,
+        customerId: session.customer,
+        metadata: session.metadata
+      });
 
-    return NextResponse.json({ sessionId: session.id });
-  } catch (error) {
-    console.error('[Checkout] Error creating session:', error);
+      return NextResponse.json({ sessionId: session.id });
+    } catch (stripeError: any) {
+      console.error('[Checkout] Stripe session creation failed:', {
+        error: stripeError,
+        message: stripeError.message,
+        type: stripeError.type,
+        code: stripeError.code,
+        stack: stripeError.stack
+      });
+      return NextResponse.json(
+        { error: `Stripe error: ${stripeError.message}` },
+        { status: 500 }
+      );
+    }
+  } catch (error: any) {
+    console.error('[Checkout] Error creating session:', {
+      error,
+      message: error.message,
+      stack: error.stack
+    });
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      { error: `Server error: ${error.message}` },
       { status: 500 }
     );
   }

@@ -1050,6 +1050,7 @@ ${memoryContext}`
 
       // Get the current user's ID token
       const idToken = await user.getIdToken();
+      console.log('[Dashboard] Got ID token');
 
       // Create Stripe Checkout Session
       const response = await fetch('/api/stripe/create-checkout-session', {
@@ -1064,17 +1065,18 @@ ${memoryContext}`
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
         console.error('[Dashboard] Checkout session creation failed:', {
           status: response.status,
           statusText: response.statusText,
-          error: errorData
+          error: data
         });
-        throw new Error(`Failed to create checkout session: ${errorData.error || response.statusText}`);
+        throw new Error(data.error || response.statusText);
       }
 
-      const { sessionId } = await response.json();
+      const { sessionId } = data;
       console.log('[Dashboard] Checkout session created:', { sessionId });
 
       // Redirect to Stripe Checkout
@@ -1089,9 +1091,10 @@ ${memoryContext}`
         console.error('[Dashboard] Stripe redirect error:', error);
         throw error;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Dashboard] Error initiating plan change:', error);
       // Show error notification to user
+      setError(error.message || 'Failed to create checkout session. Please try again.');
     }
   };
 
