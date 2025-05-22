@@ -96,8 +96,8 @@ export async function POST(request: Request) {
           },
         ],
         mode: 'subscription',
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+        success_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
         metadata: {
           userId: userId,
           plan: plan
@@ -108,7 +108,9 @@ export async function POST(request: Request) {
       console.log('[Checkout] Session created:', {
         sessionId: session.id,
         customerId: session.customer,
-        metadata: session.metadata
+        metadata: session.metadata,
+        successUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`
       });
 
       return NextResponse.json({ sessionId: session.id });
