@@ -2422,14 +2422,14 @@ When responding:
                 <p className="text-white/60 text-center max-w-md text-sm md:text-base">
                   Your AI companion with memory capabilities. Try asking something or use one of these examples:
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 w-full max-w-[280px] md:max-w-2xl">
+                <div className="grid grid-cols-2 gap-2 md:gap-4 w-full max-w-[280px] md:max-w-2xl">
                   {examplePrompts.map((prompt, index) => (
                     <button
                       key={index}
                       onClick={() => handleExampleClick(prompt)}
-                      className="p-3 md:p-4 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors border border-white/10 hover:border-white/20"
+                      className="p-2 md:p-4 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-colors border border-white/10 hover:border-white/20"
                     >
-                      <p className="text-white/80 text-sm md:text-base">{prompt}</p>
+                      <p className="text-white/80 text-xs md:text-base">{prompt}</p>
                     </button>
                   ))}
                 </div>
