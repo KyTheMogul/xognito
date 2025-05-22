@@ -1769,34 +1769,66 @@ When responding:
           console.log('[Dashboard] Session verification response:', data);
 
           if (data.status === 'complete') {
-            console.log('[Dashboard] Payment successful, refreshing subscription data');
-            // Refresh subscription data
+            console.log('[Dashboard] Payment successful, updating subscription data');
             const user = auth.currentUser;
             if (user) {
-              const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
-              console.log('[Dashboard] Fetching billing data from Firestore...');
-              const billingDoc = await getDoc(billingRef);
+              // Get the session details
+              const sessionResponse = await fetch(`/api/stripe/get-session?session_id=${sessionId}`);
+              const sessionData = await sessionResponse.json();
               
-              if (billingDoc.exists()) {
-                const data = billingDoc.data();
-                console.log('[Dashboard] Current billing data:', data);
-                setUserSubscription({
-                  plan: data.plan,
-                  isActive: data.status === 'active' || data.status === 'trialing',
-                  stripeCustomerId: data.stripeCustomerId,
-                  stripeSubscriptionId: data.stripeSubscriptionId,
-                  startDate: data.startDate,
-                  nextBillingDate: data.nextBillingDate,
-                  trialEndsAt: data.trialEndsAt,
-                  status: data.status,
-                  billingHistory: data.billingHistory || [],
-                  isInvitedUser: data.isInvitedUser,
-                  inviterEmail: data.inviterEmail,
-                  billingGroup: data.billingGroup,
-                  xloudId: data.xloudId
+              if (sessionData.success) {
+                const { customer, subscription, metadata } = sessionData.session;
+                
+                // Update user document
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, {
+                  plan: metadata.plan || 'pro',
+                  subscriptionStatus: 'active',
+                  stripeCustomerId: customer,
+                  subscriptionId: subscription,
+                  updatedAt: new Date().toISOString()
                 });
-              } else {
-                console.log('[Dashboard] No billing document found');
+
+                // Update billing document
+                const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+                await setDoc(billingRef, {
+                  plan: metadata.plan || 'pro',
+                  status: 'active',
+                  stripeCustomerId: customer,
+                  stripeSubscriptionId: subscription,
+                  startDate: new Date().toISOString(),
+                  nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+                  cancelAtPeriodEnd: false,
+                  billingHistory: arrayUnion({
+                    date: new Date().toISOString(),
+                    type: 'subscription_created',
+                    amount: 0, // Free with promo code
+                    currency: 'usd',
+                    status: 'succeeded'
+                  }),
+                  updatedAt: new Date().toISOString()
+                }, { merge: true });
+
+                // Refresh subscription data
+                const billingDoc = await getDoc(billingRef);
+                if (billingDoc.exists()) {
+                  const data = billingDoc.data();
+                  setUserSubscription({
+                    plan: data.plan,
+                    isActive: data.status === 'active' || data.status === 'trialing',
+                    stripeCustomerId: data.stripeCustomerId,
+                    stripeSubscriptionId: data.stripeSubscriptionId,
+                    startDate: data.startDate,
+                    nextBillingDate: data.nextBillingDate,
+                    trialEndsAt: data.trialEndsAt,
+                    status: data.status,
+                    billingHistory: data.billingHistory || [],
+                    isInvitedUser: data.isInvitedUser,
+                    inviterEmail: data.inviterEmail,
+                    billingGroup: data.billingGroup,
+                    xloudId: data.xloudId
+                  });
+                }
               }
             }
           } else {
