@@ -997,7 +997,8 @@ ${memoryContext}`
 
     const fetchSubscription = async () => {
       try {
-        const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+        // First check the billing document
+        const billingRef = doc(db, 'users', user.uid, 'billing', 'subscription');
         const billingDoc = await getDoc(billingRef);
         
         if (billingDoc.exists()) {
@@ -1006,10 +1007,9 @@ ${memoryContext}`
             plan: data.plan,
             isActive: data.status === 'active' || data.status === 'trialing',
             stripeCustomerId: data.stripeCustomerId,
-            stripeSubscriptionId: data.stripeSubscriptionId,
-            startDate: data.startDate,
-            nextBillingDate: data.nextBillingDate,
-            trialEndsAt: data.trialEndsAt,
+            stripeSubscriptionId: data.subscriptionId,
+            startDate: data.currentPeriodStart,
+            nextBillingDate: data.currentPeriodEnd,
             status: data.status,
             billingHistory: data.billingHistory || [],
             isInvitedUser: data.isInvitedUser,
@@ -1018,12 +1018,28 @@ ${memoryContext}`
             xloudId: data.xloudId
           });
         } else {
-          setUserSubscription({
-            plan: 'free',
-            isActive: false,
-            status: 'canceled',
-            billingHistory: []
-          });
+          // Fallback to user document
+          const userRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUserSubscription({
+              plan: userData.plan || 'free',
+              isActive: userData.subscriptionStatus === 'active',
+              stripeCustomerId: userData.stripeCustomerId,
+              stripeSubscriptionId: userData.subscriptionId,
+              status: userData.subscriptionStatus || 'canceled',
+              billingHistory: []
+            });
+          } else {
+            setUserSubscription({
+              plan: 'free',
+              isActive: false,
+              status: 'canceled',
+              billingHistory: []
+            });
+          }
         }
       } catch (error) {
         console.error('Error fetching subscription:', error);
