@@ -83,7 +83,20 @@ export async function POST(request: Request) {
           updatedAt: new Date().toISOString()
         });
 
-        console.log('[Webhook] Successfully updated user plan:', {
+        // Create or update the billing document
+        const billingRef = adminDb.collection('users').doc(userId).collection('billing').doc('subscription');
+        await billingRef.set({
+          plan: plan,
+          status: 'active',
+          stripeCustomerId: session.customer,
+          subscriptionId: session.subscription,
+          currentPeriodStart: new Date().toISOString(),
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+          cancelAtPeriodEnd: false,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        console.log('[Webhook] Successfully updated user plan and billing:', {
           userId,
           plan,
           customerId: session.customer,
@@ -125,6 +138,16 @@ export async function POST(request: Request) {
           subscriptionStatus: subscription.status,
           updatedAt: new Date().toISOString()
         });
+
+        // Update the billing document
+        const billingRef = adminDb.collection('users').doc(userId).collection('billing').doc('subscription');
+        await billingRef.set({
+          status: subscription.status,
+          currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
 
         console.log('[Webhook] Successfully updated subscription status:', {
           userId,
@@ -168,6 +191,18 @@ export async function POST(request: Request) {
           subscriptionId: null,
           updatedAt: new Date().toISOString()
         });
+
+        // Update the billing document
+        const billingRef = adminDb.collection('users').doc(userId).collection('billing').doc('subscription');
+        await billingRef.set({
+          plan: 'free',
+          status: 'canceled',
+          stripeCustomerId: null,
+          subscriptionId: null,
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+          cancelAtPeriodEnd: true,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
 
         console.log('[Webhook] Successfully processed subscription cancellation:', {
           userId
