@@ -2419,10 +2419,10 @@ When responding:
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center space-y-6 md:space-y-8 px-4">
                 <h2 className="text-xl md:text-2xl font-bold text-white/80">Welcome to Xognito</h2>
-                <p className="text-white/60 text-center max-w-md text-sm md:text-base">
+                <p className="text-white/60 text-center max-w-[240px] md:max-w-md text-sm md:text-base">
                   Your AI companion with memory capabilities. Try asking something or use one of these examples:
                 </p>
-                <div className="grid grid-cols-2 gap-2 md:gap-4 w-full max-w-[280px] md:max-w-2xl">
+                <div className="grid grid-cols-2 gap-2 md:gap-4 w-full max-w-[320px] md:max-w-2xl">
                   {examplePrompts.map((prompt, index) => (
                     <button
                       key={index}
