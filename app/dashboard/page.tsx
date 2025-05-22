@@ -1741,22 +1741,26 @@ When responding:
       const sessionId = urlParams.get('session_id');
 
       if (sessionId) {
-        console.log("[Dashboard] Found Stripe session ID:", sessionId);
+        console.log('[Dashboard] Found Stripe session ID:', sessionId);
         try {
           // Verify session status
+          console.log('[Dashboard] Verifying session status...');
           const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`);
           const data = await response.json();
+          console.log('[Dashboard] Session verification response:', data);
 
           if (data.status === 'complete') {
-            console.log("[Dashboard] Payment successful, refreshing subscription data");
+            console.log('[Dashboard] Payment successful, refreshing subscription data');
             // Refresh subscription data
             const user = auth.currentUser;
             if (user) {
               const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
+              console.log('[Dashboard] Fetching billing data from Firestore...');
               const billingDoc = await getDoc(billingRef);
               
               if (billingDoc.exists()) {
                 const data = billingDoc.data();
+                console.log('[Dashboard] Current billing data:', data);
                 setUserSubscription({
                   plan: data.plan,
                   isActive: data.status === 'active' || data.status === 'trialing',
@@ -1772,15 +1776,19 @@ When responding:
                   billingGroup: data.billingGroup,
                   xloudId: data.xloudId
                 });
+              } else {
+                console.log('[Dashboard] No billing document found');
               }
             }
+          } else {
+            console.log('[Dashboard] Payment not complete:', data.status);
           }
 
           // Clean up URL
           const newUrl = window.location.pathname;
           window.history.replaceState({}, '', newUrl);
         } catch (error) {
-          console.error("[Dashboard] Error verifying session:", error);
+          console.error('[Dashboard] Error verifying session:', error);
         }
       }
     };

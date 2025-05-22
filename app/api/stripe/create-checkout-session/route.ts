@@ -5,6 +5,8 @@ import { stripe } from '@/lib/stripe';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import Stripe from 'stripe';
+import { auth } from '@/lib/firebase';
 
 // Validate required environment variables
 const requiredEnvVars = {
@@ -116,126 +118,61 @@ async function getOrCreateStripeCustomer(userId: string): Promise<string> {
 // Cache for checkout sessions
 const sessionCache = new Map<string, { sessionId: string; url: string }>();
 
-export async function POST(req: Request) {
-  console.log('[Checkout] Starting checkout session creation');
+const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-04-30.basil'
+});
+
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    const { plan, userId } = body;
-
-    if (!plan || !userId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    // Check cache for existing session
-    const cacheKey = `${userId}_${plan}`;
-    if (sessionCache.has(cacheKey)) {
-      console.log('[Checkout] Returning cached session');
-      return NextResponse.json(sessionCache.get(cacheKey));
-    }
-
-    // Verify user exists
-    const userDoc = await adminDb.collection('users').doc(userId).get();
+    console.log('[Checkout] Creating checkout session');
     
-    if (!userDoc.exists) {
-      try {
-        const decodedToken = await adminAuth.verifyIdToken(userId);
-        const userDocByUid = await adminDb.collection('users').doc(decodedToken.uid).get();
-        
-        if (!userDocByUid.exists) {
-          await adminDb.collection('users').doc(userId).set({
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString(),
-            provider: 'xloudid'
-          });
-        }
-      } catch (error) {
-        console.error('[Checkout] Error verifying user:', error);
-        return NextResponse.json(
-          { error: 'Error verifying user' },
-          { status: 500 }
-        );
-      }
-    }
+    const { plan } = await request.json();
+    const user = auth.currentUser;
 
-    const planDetails = PLANS[plan as keyof typeof PLANS];
-    if (!planDetails) {
+    if (!user) {
+      console.error('[Checkout] No authenticated user found');
       return NextResponse.json(
-        { error: 'Invalid plan selected' },
-        { status: 400 }
+        { error: 'User must be authenticated' },
+        { status: 401 }
       );
     }
 
-    // Get or create Stripe customer
-    const customerId = await getOrCreateStripeCustomer(userId);
+    console.log('[Checkout] User details:', {
+      uid: user.uid,
+      email: user.email,
+      plan: plan
+    });
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
+    // Create a checkout session
+    const session = await stripeInstance.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: planDetails.name,
-              description: planDetails.features.join('\n'),
-              metadata: {
-                plan,
-                userId
-              }
-            },
-            unit_amount: planDetails.price,
-            recurring: {
-              interval: 'month',
-            },
-          },
+          price: plan === 'pro' ? process.env.STRIPE_PRO_PRICE_ID : process.env.STRIPE_PRO_PLUS_PRICE_ID,
           quantity: 1,
         },
       ],
       mode: 'subscription',
-      success_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
       metadata: {
-        userId,
-        plan,
+        userId: user.uid,
+        plan: plan
       },
-      allow_promotion_codes: true,
-      billing_address_collection: 'auto',
-      customer_update: {
-        address: 'auto',
-        name: 'auto'
-      }
+      customer_email: user.email || undefined,
     });
 
-    // Store session in Firestore
-    await adminDb.collection('checkout_sessions').doc(session.id).set({
-      userId,
-      customerId,
-      plan,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
+    console.log('[Checkout] Session created:', {
       sessionId: session.id,
+      customerId: session.customer,
       metadata: session.metadata
     });
 
-    // Cache the session
-    const sessionData = { 
-      sessionId: session.id, 
-      url: session.url || '' // Ensure URL is never null
-    };
-    sessionCache.set(cacheKey, sessionData);
-
-    return NextResponse.json(sessionData);
+    return NextResponse.json({ sessionId: session.id });
   } catch (error) {
-    console.error('[Checkout] Error in create-checkout-session:', error);
+    console.error('[Checkout] Error creating session:', error);
     return NextResponse.json(
-      { 
-        error: 'Error creating checkout session',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Failed to create checkout session' },
       { status: 500 }
     );
   }

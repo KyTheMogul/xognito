@@ -46,24 +46,47 @@ export function useAuth() {
         body: JSON.stringify({ token }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("[XloudID] Token exchange failed:", errorData);
-        throw new Error(errorData.message || 'Failed to exchange token');
-      }
-
-      const { firebaseToken, user: userData } = await response.json();
-      console.log("[XloudID] Token exchange successful:", {
-        uid: userData.uid,
-        email: userData.email
+      // Log the full response for debugging
+      console.log("[XloudID] API Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
+      const responseText = await response.text();
+      console.log("[XloudID] API Response body:", responseText);
+
+      if (!response.ok) {
+        throw new Error(`Failed to exchange token: ${response.status} ${response.statusText}\n${responseText}`);
+      }
+
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("[XloudID] Failed to parse response as JSON:", e);
+        throw new Error("Invalid response from server");
+      }
+
+      const { firebaseToken, user: userData } = responseData;
+      console.log("[XloudID] Token exchange successful:", {
+        uid: userData.uid,
+        email: userData.email,
+        tokenLength: firebaseToken?.length
+      });
+
+      if (!firebaseToken) {
+        throw new Error("No Firebase token received from server");
+      }
+
       // Sign in with Firebase token
+      console.log("[XloudID] Attempting to sign in with Firebase token");
       const userCredential = await signInWithCustomToken(auth, firebaseToken);
       const firebaseUser = userCredential.user;
       console.log("[XloudID] Firebase sign in successful:", {
         uid: firebaseUser.uid,
-        email: firebaseUser.email
+        email: firebaseUser.email,
+        emailVerified: firebaseUser.emailVerified
       });
 
       // Get the ID token
