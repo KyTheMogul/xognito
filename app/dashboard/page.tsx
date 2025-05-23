@@ -884,7 +884,7 @@ export default function Dashboard() {
           // Add initial AI message with thinking state
           const initialAiMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
-            text: "I'm generating your image...",
+            text: "Creating image...",
             thinking: true
           };
           aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
@@ -907,7 +907,7 @@ export default function Dashboard() {
           // Update AI message with the generated image
           const updatedAiMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
-            text: `I've generated an image based on your request.`,
+            text: "",
             files: [{
               id: Date.now().toString(),
               url: `data:image/png;base64,${result.artifacts[0].base64}`,
@@ -955,10 +955,11 @@ Guidelines:
 1. Be concise but thorough
 2. Use markdown formatting when appropriate
 3. For image generation:
-   - When users ask for images, respond with a simple acknowledgment
+   - DO NOT respond to image generation requests with text
    - DO NOT try to generate images yourself or provide image URLs
+   - DO NOT ask for details about the image
    - Let the system handle the actual image generation
-   - After the image is generated, you can provide feedback or suggestions
+   - The system will automatically detect image requests and handle them
 4. Remember important details from the conversation
 5. If you're not sure about something, say so
 6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
