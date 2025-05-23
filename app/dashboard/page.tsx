@@ -73,7 +73,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'react-toastify';
 
-const USER_PROFILE = '/2d94800c-7d13-44a8-a7fa-d7788dda6d17.png';
+const USER_PROFILE = '/ChatGPT Image May 23, 2025, 06_50_00 AM.png';
 const AI_PROFILE = '/XognitoLogoFull.png';
 
 type Message = { sender: 'user' | 'ai'; text: string, files?: UploadedFile[], thinking?: boolean };
