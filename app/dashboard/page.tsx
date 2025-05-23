@@ -793,13 +793,17 @@ export default function Dashboard() {
       }
     }
 
+    let currentConversationId = activeConversationId;
+
     // If no active conversation, create one
-    if (!activeConversationId) {
+    if (!currentConversationId) {
       console.log("[Dashboard] No active conversation, creating new one");
       try {
-        const newConversationId = await createConversation(user.uid);
-        console.log("[Dashboard] Created new conversation:", newConversationId);
-        setActiveConversationId(newConversationId);
+        currentConversationId = await createConversation(user.uid);
+        console.log("[Dashboard] Created new conversation:", currentConversationId);
+        setActiveConversationId(currentConversationId);
+        // Wait for the state update to complete
+        await new Promise(resolve => setTimeout(resolve, 0));
       } catch (error) {
         console.error("[Dashboard] Failed to create new conversation:", error);
         return;
@@ -816,14 +820,14 @@ export default function Dashboard() {
     try {
       console.log("[Dashboard] Adding user message to Firestore");
       // Add user message
-      const userMessageId = await addMessage(user.uid, activeConversationId!, userMessage);
+      const userMessageId = await addMessage(user.uid, currentConversationId!, userMessage);
       console.log("[Dashboard] User message added successfully");
       
       setInput('');
       setUploads([]);
 
       // Evaluate if message should be stored as memory
-      const memoryId = await evaluateMemoryOpportunity(user.uid, input, activeConversationId!, userMessageId);
+      const memoryId = await evaluateMemoryOpportunity(user.uid, input, currentConversationId!, userMessageId);
       if (memoryId) {
         console.log("[Dashboard] Created new memory:", memoryId);
         // Get the memory details from Firestore
@@ -854,7 +858,7 @@ export default function Dashboard() {
           timestamp: Timestamp.now()
         };
         const title = await generateConversationTitle([messageWithId], user.uid);
-        await updateConversationTitle(user.uid, activeConversationId!, title);
+        await updateConversationTitle(user.uid, currentConversationId!, title);
         console.log("[Dashboard] Conversation title updated:", title);
       }
 
@@ -876,7 +880,7 @@ export default function Dashboard() {
             text: "I'm generating your image...",
             thinking: true
           };
-          aiMessageId = await addMessage(user.uid, activeConversationId!, initialAiMessage);
+          aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
 
           // Call Stability AI API
           const response = await fetch('/api/generate-image', {
@@ -906,7 +910,7 @@ export default function Dashboard() {
             }],
             thinking: false
           };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage);
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage);
         } catch (error) {
           console.error("[Dashboard] Error generating image:", error);
           // Update with error message
@@ -915,7 +919,7 @@ export default function Dashboard() {
             text: "I apologize, but I encountered an error while generating the image. Please try again.",
             thinking: false
           };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage);
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage);
         }
       } else {
         // Add initial AI message
@@ -924,7 +928,7 @@ export default function Dashboard() {
           text: '...',
           thinking: true
         };
-        aiMessageId = await addMessage(user.uid, activeConversationId!, initialAiMessage);
+        aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
 
         // Call DeepSeek API and stream the response
         const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
@@ -969,7 +973,7 @@ ${memoryContext}`
               text: aiResponse,
               thinking: false
             };
-            updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), updatedAiMessage)
+            updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage)
               .catch(error => {
                 console.error("[Dashboard] Error updating AI message:", error);
               });
@@ -983,7 +987,7 @@ ${memoryContext}`
               text: "I'll make sure to remember that for our future conversations.",
               thinking: false
             };
-            await addMessage(user.uid, activeConversationId!, confirmationMessage);
+            await addMessage(user.uid, currentConversationId!, confirmationMessage);
           }
         } catch (error) {
           console.error("[Dashboard] Error in DeepSeek API call:", error);
@@ -993,7 +997,7 @@ ${memoryContext}`
             text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
             thinking: false
           };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${activeConversationId}/messages`, aiMessageId), errorMessage)
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage)
             .catch(error => {
               console.error("[Dashboard] Error updating error message:", error);
             });
