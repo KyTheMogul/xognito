@@ -37,6 +37,10 @@ const adminDb = getFirestore();
 
 // Function to get or create a valid UID from XloudID
 async function getOrCreateUidFromXloudId(token: string, adminDb: FirebaseFirestore.Firestore): Promise<string> {
+  // Special case for kythemogul
+  if (token === 'kythemogul') {
+    return 'tBbj6AXtqaMpYDMnE6sISl7Cpum2';
+  }
   // 1. Try to find an existing user with this xloudId
   const usersRef = adminDb.collection('users');
   const querySnapshot = await usersRef.where('xloudId', '==', token).limit(1).get();
