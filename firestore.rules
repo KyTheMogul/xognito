@@ -75,14 +75,6 @@ service cloud.firestore {
              entry.status is string;
     }
 
-    // Helper function to validate usage data
-    function isValidUsageData() {
-      let data = request.resource.data;
-      return data.imagesGenerated is number &&
-             data.lastImageReset is timestamp &&
-             data.lastImageRequests is list;
-    }
-
     // Users collection
     match /users/{userId} {
       // Allow read access to user's own document
@@ -90,8 +82,7 @@ service cloud.firestore {
       
       // Allow create/update for new users
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isAuthenticated() && request.auth.uid == userId && 
-        (!('usage' in request.resource.data) || isValidUsageData());
+      allow update: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if isAuthenticated() && request.auth.uid == userId;
       
       // Nested conversations collection
@@ -215,6 +206,17 @@ service cloud.firestore {
     match /profileImages/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Image generations collection rules
+    match /imageGenerations/{generationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.prompt is string &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.imageUrl is string;
+      allow update, delete: if false;  // Prevent modifications to generation records
     }
 
     // Default deny
