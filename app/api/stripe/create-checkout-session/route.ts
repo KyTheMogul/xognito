@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     // Get the authorization header
     const headersList = await headers();
     const authHeader = headersList.get('authorization');
-    
+
     if (!authHeader?.startsWith('Bearer ')) {
       console.error('[Checkout] No valid authorization header found');
       return NextResponse.json(
@@ -104,21 +104,21 @@ export async function POST(request: Request) {
     // Create a checkout session
     try {
       const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-        payment_method_types: ['card'],
-        line_items: [
-          {
+      payment_method_types: ['card'],
+      line_items: [
+        {
             price: priceId,
-            quantity: 1,
-          },
-        ],
-        mode: 'subscription',
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
         success_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
-        metadata: {
+      metadata: {
           userId: userId,
           plan: plan,
           promoCode: promoCode || undefined
-        },
+      },
         customer_email: decodedToken.email || undefined,
         discounts: promoCode ? [
           {
@@ -138,16 +138,16 @@ export async function POST(request: Request) {
 
       const session = await stripeInstance.checkout.sessions.create(sessionConfig);
 
-      console.log('[Checkout] Session created:', {
-        sessionId: session.id,
-        customerId: session.customer,
+    console.log('[Checkout] Session created:', {
+      sessionId: session.id,
+      customerId: session.customer,
         metadata: session.metadata,
         successUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `https://${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
         priceId: priceId
-      });
+    });
 
-      return NextResponse.json({ sessionId: session.id });
+    return NextResponse.json({ sessionId: session.id });
     } catch (stripeError: any) {
       console.error('[Checkout] Stripe session creation failed:', {
         error: stripeError,

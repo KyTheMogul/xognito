@@ -10,16 +10,16 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
-    }
-
-    // Helper function to check if user is admin
-    function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isInvitedUser() {
@@ -28,7 +28,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing).data.isInvitedUser == true;
     }
 
-    // Helper function to check if user is the owner
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -81,9 +80,9 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       // Allow read access to user's own document
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && request.auth.uid == userId;
       
-      // Allow create/update for new users and existing users
+      // Allow create/update for new users
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if isAuthenticated() && request.auth.uid == userId;

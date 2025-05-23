@@ -640,12 +640,12 @@ export default function Dashboard() {
       setActiveConversationId(newConversationId);
       
       // Set input and clear messages
-      setInput(prompt);
+    setInput(prompt);
       setMessages([]);
       
       // Send the message
-      const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
-      handleSend(syntheticEvent);
+    const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+    handleSend(syntheticEvent);
     } catch (error) {
       console.error("[Dashboard] Error in handleExampleClick:", error);
     }
@@ -682,7 +682,7 @@ export default function Dashboard() {
     const unsubscribe = listenToMessages(user.uid, activeConversationId, (msgs) => {
       // Only update messages if we have an active conversation
       if (activeConversationId) {
-        setMessages(msgs);
+      setMessages(msgs);
       }
     });
 
@@ -2485,62 +2485,62 @@ When responding:
         </div>
 
         {/* Chat input */}
-        <form
+      <form 
           onSubmit={handleSend}
-          className="fixed bottom-0 left-0 w-full flex justify-center pb-6 z-40 bg-transparent"
-        >
+        className="fixed bottom-0 left-0 w-full flex justify-center pb-6 z-40 bg-transparent" 
+      >
           <div className="flex items-center w-full max-w-[320px] md:max-w-2xl bg-black border border-white rounded-full px-3 md:px-4 py-1.5 md:py-2 gap-2 shadow-lg">
-            {/* Upload icon */}
-            <button
-              type="button"
-              className="text-zinc-400 hover:text-white transition-colors focus:outline-none"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Upload file"
-            >
+          {/* Upload icon */}
+          <button
+            type="button"
+            className="text-zinc-400 hover:text-white transition-colors focus:outline-none"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Upload file"
+          >
               <svg width="18" height="18" className="md:w-[22px] md:h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l9.19-9.19" /></svg>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,application/pdf"
-                multiple
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </button>
-            {/* Input field */}
             <input
-              type="text"
-              value={input}
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </button>
+          {/* Input field */}
+          <input
+            type="text"
+            value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type a message..."
               className="flex-1 bg-transparent outline-none text-white placeholder:text-zinc-400 text-sm md:text-base px-2"
-            />
+          />
             {/* Send button */}
-            {input.trim() && (
-              <button
-                type="submit"
+          {input.trim() && (
+            <button 
+              type="submit" 
                 className="bg-white text-black font-semibold rounded-full px-3 md:px-5 py-1 md:py-2 text-xs md:text-sm shadow hover:bg-zinc-100 transition-colors"
-              >
-                Send
-              </button>
-            )}
-            {/* Microphone icon button */}
-            <button
-              type="button"
-              className={`${listening ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'} transition-colors p-1.5 md:p-2 rounded-full focus:outline-none flex items-center justify-center`}
-              aria-label="Record voice message"
-              onClick={handleMicClick}
             >
-              <svg width="18" height="18" className="md:w-[22px] md:h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="2" width="6" height="12" rx="3"/>
-                <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-                <line x1="8" y1="22" x2="16" y2="22"/>
-              </svg>
-              {listening && <span className="ml-2 text-xs animate-pulse">Listening...</span>}
+              Send
             </button>
-          </div>
-        </form>
+          )}
+          {/* Microphone icon button */}
+          <button
+            type="button"
+              className={`${listening ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'} transition-colors p-1.5 md:p-2 rounded-full focus:outline-none flex items-center justify-center`}
+            aria-label="Record voice message"
+            onClick={handleMicClick}
+          >
+              <svg width="18" height="18" className="md:w-[22px] md:h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"/>
+              <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="22"/>
+              <line x1="8" y1="22" x2="16" y2="22"/>
+            </svg>
+            {listening && <span className="ml-2 text-xs animate-pulse">Listening...</span>}
+          </button>
+        </div>
+      </form>
       </main>
 
       {/* Upload preview area above input */}

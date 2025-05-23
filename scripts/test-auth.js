@@ -59,7 +59,10 @@ async function testAuth() {
 
   // Step 1: Exchange token for Firebase token
   console.log("Step 1: Exchanging token for Firebase token");
-  const testToken = `test_token_${Date.now()}`;
+  // Use a specific XloudID for testing
+  const testToken = process.argv[2] || `test_token_${Date.now()}`;
+  console.log("Testing with XloudID:", testToken);
+  
   const apiUrl = "http://localhost:3000/api/auth/xloudid";
 
   try {
