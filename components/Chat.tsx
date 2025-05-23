@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { auth } from '@/lib/firebase';
 import ImageMessage from './ImageMessage';
+import Image from 'next/image';
+
+const USER_PROFILE = 'https://randomuser.me/api/portraits/men/32.jpg';
+const AI_PROFILE = '/XognitoLogoFull.png';
 
 // Add to your Message interface
 interface Message {
@@ -98,12 +102,23 @@ export default function Chat() {
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
+            className={`flex items-start space-x-4 ${
+              message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+            }`}
           >
+            <div className="flex-shrink-0">
+              <Image
+                src={message.role === 'user' ? USER_PROFILE : AI_PROFILE}
+                alt={message.role === 'user' ? 'User' : 'AI'}
+                width={40}
+                height={40}
+                className="rounded-full"
+              />
+            </div>
             <div
-              className={`max-w-[80%] rounded-lg p-4 ${
+              className={`flex-1 max-w-[80%] rounded-lg p-4 ${
                 message.role === 'user'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-white/5 text-white/80'
                   : 'bg-white/5 text-white/80'
               }`}
             >
@@ -130,7 +145,7 @@ export default function Chat() {
           <button
             type="submit"
             disabled={isLoading || !isAuthenticated}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-white/5 text-white/80 px-6 py-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Sending...' : 'Send'}
           </button>
