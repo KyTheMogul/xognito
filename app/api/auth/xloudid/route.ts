@@ -37,9 +37,9 @@ const adminDb = getFirestore();
 
 // Function to create a valid UID from token
 function createValidUid(token: string): string {
-  // Create a hash of the token
+  // Create a consistent hash of the token
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  // Take first 28 characters (Firebase UIDs are typically 28 chars)
+  // Take first 20 characters to ensure consistent length
   return `xloudid_${hash.substring(0, 20)}`;
 }
 
@@ -111,7 +111,8 @@ export async function POST(request: Request) {
     await auth.setCustomUserClaims(uid, {
       provider: 'xloudid',
       originalToken: token,
-      emailVerified: true
+      emailVerified: true,
+      role: 'user'
     });
     console.log("[XloudID API] Custom claims set successfully");
 
@@ -128,6 +129,7 @@ export async function POST(request: Request) {
           createdAt: new Date(),
           lastLogin: new Date(),
           emailVerified: true,
+          role: 'user',
           settings: {
             theme: 'system',
             notifications: {
@@ -160,7 +162,7 @@ export async function POST(request: Request) {
             }
           }
         };
-        await userRef.set(userData);
+        await userRef.set(userData, { merge: true });
         console.log("[XloudID API] User document created successfully in Firestore");
       } catch (error) {
         console.error("[XloudID API] Error creating user document:", error);
@@ -179,7 +181,8 @@ export async function POST(request: Request) {
         await userRef.update({
           lastLogin: new Date(),
           xloudId: token,
-          emailVerified: true
+          emailVerified: true,
+          role: 'user'
         });
         console.log("[XloudID API] User document updated successfully in Firestore");
       } catch (error) {
@@ -193,7 +196,8 @@ export async function POST(request: Request) {
     const firebaseToken = await auth.createCustomToken(uid, {
       provider: 'xloudid',
       originalToken: token,
-      emailVerified: true
+      emailVerified: true,
+      role: 'user'
     });
     console.log("[XloudID API] Firebase token created successfully:", {
       tokenLength: firebaseToken.length,
@@ -205,7 +209,8 @@ export async function POST(request: Request) {
       user: {
         uid: user.uid,
         email: user.email,
-        emailVerified: true
+        emailVerified: true,
+        role: 'user'
       }
     };
     console.log("[XloudID API] Sending successful response:", {

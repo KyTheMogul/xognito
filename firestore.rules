@@ -5,14 +5,9 @@ service cloud.firestore {
     // Allow public read access to usernames for authentication
     match /users/{userId} {
       allow read: if true;  // Allow reading user documents for username lookup
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Helper function to check if user is admin
-    function isAdmin() {
-      return request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     // Helper function to check if user is authenticated
@@ -20,12 +15,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isInvitedUser() {
+    // Helper function to check if user is admin
+    function isAdmin() {
       return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.isInvitedUser == true;
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function isInvitedUser() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing).data.isInvitedUser == true;
+    }
+
+    // Helper function to check if user is the owner
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -55,7 +58,7 @@ service cloud.firestore {
     
     function isValidBillingData() {
       let data = request.resource.data;
-      return data.plan in ['free', 'pro', 'pro_plus'] &&
+      return data.plan in ['Free', 'Pro', 'Pro-Plus'] &&
              data.status in ['active', 'canceled', 'past_due', 'trialing'] &&
              (!('stripeCustomerId' in data) || data.stripeCustomerId is string) &&
              (!('stripeSubscriptionId' in data) || data.stripeSubscriptionId is string) &&
@@ -63,37 +66,24 @@ service cloud.firestore {
              data.nextBillingDate is timestamp &&
              (!('trialEndsAt' in data) || data.trialEndsAt is timestamp) &&
              data.billingHistory is list &&
-             data.usage.messagesToday is number &&
-             data.usage.filesUploaded is number &&
-             data.usage.lastReset is timestamp &&
-             (!('group' in data) || (
-               data.group.id is string &&
-               data.group.name is string &&
-               data.group.owner is string &&
-               data.group.members is list
-             )) &&
-             data.createdAt is timestamp &&
              data.updatedAt is timestamp;
     }
     
     function isValidBillingHistoryEntry() {
       let entry = request.resource.data.billingHistory[request.resource.data.billingHistory.size() - 1];
-      return entry.id is string &&
+      return entry.date is timestamp &&
+             entry.type is string &&
              entry.amount is number &&
-             entry.amount > 0 &&
              entry.currency is string &&
-             entry.status in ['succeeded', 'failed', 'pending'] &&
-             entry.date is timestamp &&
-             entry.description is string &&
-             (!('invoiceUrl' in entry) || entry.invoiceUrl is string);
+             entry.status is string;
     }
 
     // Users collection
     match /users/{userId} {
       // Allow read access to user's own document
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       
-      // Allow create/update for new users
+      // Allow create/update for new users and existing users
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if isAuthenticated() && request.auth.uid == userId;
@@ -113,20 +103,12 @@ service cloud.firestore {
         allow read, write: if isAuthenticated() && request.auth.uid == userId;
       }
 
-      // User's subscription
-      match /subscription/{docId} {
-        allow read: if isAuthenticated() && (
-          request.auth.uid == userId || 
-          isInvitedUser() && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.invitedBy == userId
-        );
-        allow write: if isAuthenticated() && request.auth.uid == userId;
-      }
-
       // User's billing information
-      match /billing/{docId} {
+      match /settings/billing {
         allow read: if isAuthenticated() && request.auth.uid == userId;
-        allow write: if isAuthenticated() && request.auth.uid == userId;
+        allow write: if isAuthenticated() && request.auth.uid == userId && 
+          isValidBillingData() && 
+          (!('billingHistory' in request.resource.data) || isValidBillingHistoryEntry());
       }
 
       // Nested usageStats collection
@@ -146,13 +128,11 @@ service cloud.firestore {
 
       // User settings rules
       match /settings/{document=**} {
-        allow read: if isOwner(userId);
-        allow create, update: if isOwner(userId);
-        allow delete: if false;
+        allow read, write: if isOwner(userId);
       }
 
-      // Explicit rules for settings/billing
-      match /settings/billing {
+      // Allow initial subscription setup
+      match /subscription/{document=**} {
         allow read, write: if isOwner(userId);
       }
     }
@@ -191,12 +171,11 @@ service cloud.firestore {
          resource.data.owner == request.auth.uid);
     }
 
-    // Invitations collection
     match /invitations/{inviteId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)/subscription/current).data.plan == 'pro';
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing).data.plan == 'Pro';
       allow update: if isAuthenticated() && (
         resource.data.email == request.auth.token.email ||
         resource.data.inviterId == request.auth.uid
