@@ -37,11 +37,6 @@ const adminDb = getFirestore();
 
 // Function to get or create a valid UID from XloudID
 async function getOrCreateUidFromXloudId(token: string, adminDb: FirebaseFirestore.Firestore): Promise<string> {
-  // Special case for kythemogul
-  if (token === 'kythemogul') {
-    console.log("[XloudID API] Using legacy UID for kythemogul: tBbj6AXtqaMpYDMnE6sISl7Cpum2");
-    return 'tBbj6AXtqaMpYDMnE6sISl7Cpum2';
-  }
   // 1. Try to find an existing user with this xloudId
   const usersRef = adminDb.collection('users');
   const querySnapshot = await usersRef.where('xloudId', '==', token).limit(1).get();
@@ -195,7 +190,48 @@ export async function POST(request: Request) {
         console.log("[XloudID API] User document updated successfully in Firestore");
       } catch (error) {
         console.error("[XloudID API] Error updating user document:", error);
-        throw error; // Re-throw the error to fail the request
+        // Fallback: If update fails, try to create the document
+        console.log("[XloudID API] Attempting to create user document as fallback");
+        const userData = {
+          provider: 'xloudid',
+          xloudId: token,
+          createdAt: new Date(),
+          lastLogin: new Date(),
+          emailVerified: true,
+          settings: {
+            theme: 'system',
+            notifications: {
+              email: true,
+              push: true,
+              weeklyDigest: false,
+              groupRequests: true,
+            },
+            ai: {
+              model: 'default',
+              temperature: 0.7,
+              maxTokens: 2000,
+            },
+            memory: {
+              enabled: true,
+              retentionDays: 30,
+              autoArchive: true,
+            }
+          },
+          subscription: {
+            plan: 'free',
+            status: 'active',
+            startDate: new Date(),
+            nextBillingDate: new Date(),
+            billingHistory: [],
+            usage: {
+              messagesToday: 0,
+              filesUploaded: 0,
+              lastReset: new Date(),
+            }
+          }
+        };
+        await userRef.set(userData);
+        console.log("[XloudID API] User document created successfully in Firestore as fallback");
       }
     }
 

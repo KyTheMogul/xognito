@@ -136,8 +136,8 @@ export function useAuth() {
       window.history.replaceState({}, document.title, url.pathname);
 
       console.log("[XloudID] All verifications passed, redirecting to dashboard");
-      // Use Next.js router for navigation
-      router.push('/dashboard');
+      // Use Next.js router for navigation with clean URL
+      router.replace('/dashboard');
     } catch (error) {
       const authError = error as Error;
       console.error("[XloudID] Authentication error:", {
