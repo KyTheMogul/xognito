@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Replicate from 'replicate';
 import { auth } from '@/lib/firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     // Update user's image generation count
     const userRef = adminDb.collection('users').doc(uid);
     await userRef.update({
-      'usage.imagesGenerated': adminDb.FieldValue.increment(1)
+      'usage.imagesGenerated': FieldValue.increment(1)
     });
 
     return NextResponse.json({ imageUrl: output });
