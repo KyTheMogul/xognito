@@ -39,6 +39,7 @@ const adminDb = getFirestore();
 async function getOrCreateUidFromXloudId(token: string, adminDb: FirebaseFirestore.Firestore): Promise<string> {
   // Special case for kythemogul
   if (token === 'kythemogul') {
+    console.log("[XloudID API] Using legacy UID for kythemogul: tBbj6AXtqaMpYDMnE6sISl7Cpum2");
     return 'tBbj6AXtqaMpYDMnE6sISl7Cpum2';
   }
   // 1. Try to find an existing user with this xloudId
