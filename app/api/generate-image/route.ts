@@ -75,29 +75,66 @@ async function checkRateLimit(uid: string) {
   return true;
 }
 
-// Add aspect ratio detection function
+// Trigger words that indicate image generation
+const IMAGE_TRIGGERS = [
+  'generate image',
+  'create image',
+  'make image',
+  'generate a picture',
+  'create a picture',
+  'make a picture',
+  'generate a photo',
+  'create a photo',
+  'make a photo',
+  'generate a logo',
+  'create a logo',
+  'make a logo',
+  'generate an illustration',
+  'create an illustration',
+  'make an illustration'
+];
+
+// Aspect ratio patterns
+const ASPECT_RATIOS = {
+  '1:1': { width: 1024, height: 1024 },
+  'square': { width: 1024, height: 1024 },
+  '16:9': { width: 1024, height: 576 },
+  'widescreen': { width: 1024, height: 576 },
+  '9:16': { width: 576, height: 1024 },
+  'portrait': { width: 576, height: 1024 },
+  '4:3': { width: 1024, height: 768 },
+  'standard': { width: 1024, height: 768 },
+  '3:4': { width: 768, height: 1024 },
+  'vertical': { width: 768, height: 1024 }
+};
+
 function detectAspectRatio(prompt: string): { width: number; height: number } {
-  const promptLower = prompt.toLowerCase();
+  const lowerPrompt = prompt.toLowerCase();
   
-  // Common aspect ratios
-  if (promptLower.includes('16:9') || promptLower.includes('16x9')) {
-    return { width: 1920, height: 1080 };
+  // Check for explicit aspect ratio mentions
+  for (const [key, dimensions] of Object.entries(ASPECT_RATIOS)) {
+    if (lowerPrompt.includes(key)) {
+      return dimensions;
+    }
   }
-  if (promptLower.includes('4:3') || promptLower.includes('4x3')) {
-    return { width: 1600, height: 1200 };
+
+  // Check for dimension patterns (e.g., "16x9", "9x16")
+  const dimensionMatch = prompt.match(/(\d+)[x:×](\d+)/i);
+  if (dimensionMatch) {
+    const [_, width, height] = dimensionMatch;
+    return {
+      width: Math.min(parseInt(width), 1024),
+      height: Math.min(parseInt(height), 1024)
+    };
   }
-  if (promptLower.includes('3:4') || promptLower.includes('3x4')) {
-    return { width: 1200, height: 1600 };
-  }
-  if (promptLower.includes('9:16') || promptLower.includes('9x16')) {
-    return { width: 1080, height: 1920 };
-  }
-  if (promptLower.includes('1:1') || promptLower.includes('square')) {
-    return { width: 1024, height: 1024 };
-  }
-  
-  // Default to square if no aspect ratio specified
-  return { width: 1024, height: 1024 };
+
+  // Default to 4:3 if no aspect ratio is specified
+  return ASPECT_RATIOS['4:3'];
+}
+
+function isImageGenerationRequest(prompt: string): boolean {
+  const lowerPrompt = prompt.toLowerCase();
+  return IMAGE_TRIGGERS.some(trigger => lowerPrompt.includes(trigger));
 }
 
 export async function POST(request: Request) {
@@ -135,6 +172,14 @@ export async function POST(request: Request) {
     const { prompt } = await request.json();
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    }
+
+    // Check if this is an image generation request
+    if (!isImageGenerationRequest(prompt)) {
+      return NextResponse.json(
+        { error: 'Not an image generation request' },
+        { status: 400 }
+      );
     }
 
     // Detect aspect ratio from prompt
