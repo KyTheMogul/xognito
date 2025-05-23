@@ -37,9 +37,12 @@ const adminDb = getFirestore();
 
 // Function to create a valid UID from token
 function createValidUid(token: string): string {
-  // Create a hash of the token
+  // For existing users, use their XloudID as the UID
+  if (token.startsWith('kythemogul')) {
+    return 'tBbj6AXtqaMpYDMnE6sISl7Cpum2';
+  }
+  // For new users, create a hash of the token
   const hash = crypto.createHash('sha256').update(token).digest('hex');
-  // Take first 28 characters (Firebase UIDs are typically 28 chars)
   return `xloudid_${hash.substring(0, 20)}`;
 }
 
