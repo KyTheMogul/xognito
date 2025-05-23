@@ -1,50 +1,66 @@
 import { NextResponse } from 'next/server';
+import axios from 'axios';
+import FormData from 'form-data';
 
-const STABILITY_API_KEY = process.env.STABILITY_API_KEY;
-const STABILITY_API_URL = 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image';
-
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const { prompt } = await req.json();
+    const { prompt } = await request.json();
+    console.log('Received prompt:', prompt);
 
     if (!prompt) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Prompt is required' },
+        { status: 400 }
+      );
     }
 
-    if (!STABILITY_API_KEY) {
-      return NextResponse.json({ error: 'Stability API key is not configured' }, { status: 500 });
+    if (!process.env.STABILITY_API_KEY) {
+      throw new Error('STABILITY_API_KEY is not configured');
     }
 
-    const response = await fetch(STABILITY_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${STABILITY_API_KEY}`,
+    const payload = {
+      prompt,
+      output_format: 'webp',
+      aspect_ratio: '1:1',
+      style_preset: 'photographic',
+    };
+
+    console.log('Sending request to Stability AI...');
+    const response = await axios.postForm(
+      'https://api.stability.ai/v2beta/stable-image/generate/ultra',
+      axios.toFormData(payload, new FormData()),
+      {
+        validateStatus: undefined,
+        responseType: 'arraybuffer',
+        headers: { 
+          Authorization: `Bearer ${process.env.STABILITY_API_KEY}`,
+          Accept: 'image/*',
+          'stability-client-id': 'xognito-app',
+        },
       },
-      body: JSON.stringify({
-        text_prompts: [
-          {
-            text: prompt,
-            weight: 1
-          }
-        ],
-        cfg_scale: 7,
-        height: 1024,
-        width: 1024,
-        samples: 1,
-        steps: 30,
-      }),
-    });
+    );
 
-    if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json({ error: error.message || 'Failed to generate image' }, { status: response.status });
+    if (response.status !== 200) {
+      const errorMessage = Buffer.from(response.data).toString();
+      console.error('Stability AI error:', errorMessage);
+      throw new Error(`Stability AI error: ${errorMessage}`);
     }
 
-    const result = await response.json();
-    return NextResponse.json(result);
+    // Convert the image buffer to base64
+    const base64Image = Buffer.from(response.data).toString('base64');
+    const imageUrl = `data:image/webp;base64,${base64Image}`;
+
+    return NextResponse.json({
+      imageUrl,
+    });
   } catch (error) {
     console.error('Error generating image:', error);
-    return NextResponse.json({ error: 'Failed to generate image' }, { status: 500 });
+    return NextResponse.json(
+      { 
+        error: error instanceof Error ? error.message : 'Failed to generate image',
+        details: error instanceof Error ? error.stack : undefined
+      },
+      { status: 500 }
+    );
   }
 } 

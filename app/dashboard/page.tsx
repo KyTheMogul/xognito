@@ -72,6 +72,7 @@ import { initializeUserSettings } from '../lib/settings';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'react-toastify';
+import { cn } from '@/lib/utils';
 
 const USER_PROFILE = '/ChatGPT Image May 23, 2025, 06_50_00 AM.png';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -867,7 +868,13 @@ export default function Dashboard() {
                             input.toLowerCase().includes('create image') ||
                             input.toLowerCase().includes('make an image') ||
                             input.toLowerCase().includes('draw') ||
-                            input.toLowerCase().includes('generate a logo');
+                            input.toLowerCase().includes('generate a logo') ||
+                            input.toLowerCase().includes('create a logo') ||
+                            input.toLowerCase().includes('make a logo') ||
+                            input.toLowerCase().includes('design a logo') ||
+                            input.toLowerCase().includes('generate a picture') ||
+                            input.toLowerCase().includes('create a picture') ||
+                            input.toLowerCase().includes('make a picture');
 
       let aiMessageId = '';
       let aiResponse = '';
@@ -2459,12 +2466,26 @@ When responding:
                         <span className="dot-anim-smooth" style={{ animationDelay: '0.36s' }}>.</span>
                       </span>
                     ) : msg.sender === 'ai' ? renderAIMessage(msg.text) : msg.text}
-                    {/* If user message has files, show them below the bubble */}
-                    {msg.sender === 'user' && Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
+                    {/* If message has files, show them below the bubble */}
+                    {Array.isArray((msg as any).files) && (msg as any).files.length > 0 && (
                       <div className="flex flex-col gap-2 mt-3">
                         {(msg as any).files.map((f: UploadedFile) => (
                           f.type === 'image' ? (
-                            <img key={f.id} src={f.url} alt={f.name} className="rounded-xl max-w-xs max-h-48 border border-zinc-700" />
+                            <div key={f.id} className="relative aspect-square w-full max-w-md mx-auto">
+                              {(msg as any).thinking && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-white/10 backdrop-blur-sm rounded-lg">
+                                  <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                              )}
+                              <img 
+                                src={f.url} 
+                                alt={f.name} 
+                                className={cn(
+                                  "rounded-xl w-full h-full object-cover transition-all duration-500",
+                                  (msg as any).thinking ? "blur-xl" : "blur-0"
+                                )} 
+                              />
+                            </div>
                           ) : (
                             <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
                               {f.name}
