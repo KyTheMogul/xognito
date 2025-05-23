@@ -14,7 +14,8 @@ export default function GeneratedImage({ imageUrl, prompt }: GeneratedImageProps
     setIsLoading(true);
     setError(null);
 
-    const img = new Image();
+    // Create a temporary image element to check if the image loads
+    const img = document.createElement('img');
     img.src = imageUrl;
     
     img.onload = () => {
