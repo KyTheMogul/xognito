@@ -1915,32 +1915,7 @@ When responding:
   // Add authentication state listener and handle token
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
-      
-      // Check if we have a token in the URL first
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('token');
-      
-      if (token) {
-        console.log("[Dashboard] Token found in URL, attempting authentication");
-        try {
-          // Clean up URL immediately
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, '', newUrl);
-          
-          await handleAuth();
-          setIsAuthenticated(true);
-          setIsLoading(false);
-        } catch (error) {
-          console.error("[Dashboard] Authentication failed:", error);
-          setIsLoading(false);
-          router.push('/');
-        }
-        return;
-      }
-      
       if (!user) {
-        console.log("[Dashboard] No authenticated user and no token, redirecting to home");
         setIsLoading(false);
         router.push('/');
         return;
@@ -1950,21 +1925,137 @@ When responding:
       setIsAuthenticated(true);
       setIsLoading(false);
       
-      // Reset all user-specific state when user changes
-      setConversations([]);
-      setMessages([]);
-      setUserSubscription(null);
-      setUploads([]);
-      setActiveConversationId(null);
-      setLinkedUsers([]);
+      // Set basic user info immediately
       setUser(user);
       setDisplayName(user.displayName || '');
       setEmail(user.email || '');
       setPhoneNumber(user.phoneNumber || '');
+
+      // Load essential data first
+      try {
+        const [subscriptionData, usageData] = await Promise.all([
+          // Get subscription data
+          (async () => {
+            const billingRef = doc(db, 'users', user.uid, 'billing', 'subscription');
+            const billingDoc = await getDoc(billingRef);
+            if (billingDoc.exists()) {
+              const data = billingDoc.data();
+              return {
+                plan: data.plan as 'Free' | 'Pro' | 'Pro-Plus',
+                isActive: data.status === 'active' || data.status === 'trialing',
+                stripeCustomerId: data.stripeCustomerId,
+                stripeSubscriptionId: data.subscriptionId,
+                startDate: data.currentPeriodStart,
+                nextBillingDate: data.currentPeriodEnd,
+                status: data.status as 'active' | 'canceled' | 'past_due' | 'trialing',
+                billingHistory: data.billingHistory || [],
+                isInvitedUser: data.isInvitedUser,
+                inviterEmail: data.inviterEmail,
+                billingGroup: data.billingGroup,
+                xloudId: data.xloudId
+              };
+            }
+            return {
+              plan: 'Free' as const,
+              isActive: false,
+              status: 'canceled' as const,
+              billingHistory: []
+            };
+          })(),
+          // Get usage stats
+          getUsageStats(user.uid)
+        ]);
+
+        setUserSubscription(subscriptionData);
+        setUsageStats({
+          messagesToday: usageData.messagesToday,
+          filesUploaded: usageData.filesUploaded,
+          remaining: usageData.messagesToday // Use messagesToday as remaining count
+        });
+
+        // Set up real-time listeners after essential data is loaded
+        const unsubscribeConversations = listenToConversations(user.uid, (convos) => {
+          setConversations(convos);
+        });
+
+        return () => {
+          unsubscribeConversations();
+        };
+      } catch (error) {
+        console.error("[Dashboard] Error loading initial data:", error);
+      }
     });
 
     return () => unsubscribe();
-  }, [router, handleAuth]);
+  }, [router]);
+
+  // Lazy load additional data
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    // Load groups data
+    const groupsRef = collection(db, 'users', user.uid, 'groups');
+    const unsubscribeGroups = onSnapshot(groupsRef, async (snapshot) => {
+      const groupIds = snapshot.docs.map(doc => doc.id);
+      const groupsData = await Promise.all(
+        groupIds.map(async (groupId) => {
+          const groupDoc = await getDoc(doc(db, 'groups', groupId));
+          if (groupDoc.exists()) {
+            const data = groupDoc.data();
+            return {
+              id: groupId,
+              name: data.name || 'Unnamed Group',
+              code: data.code || '',
+              hostXloudID: data.hostXloudID || '',
+              description: data.description || ''
+            };
+          }
+          return null;
+        })
+      );
+      setUserGroups(groupsData.filter((group): group is NonNullable<typeof group> => group !== null));
+    });
+
+    // Load linked users
+    const fetchLinkedUsers = async () => {
+      try {
+        const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
+        const subscriptionDoc = await getDoc(subscriptionRef);
+        
+        if (subscriptionDoc.exists()) {
+          const subscriptionData = subscriptionDoc.data();
+          const invitedUsers = subscriptionData.invitedUsers || [];
+          
+          const userDetails = await Promise.all(
+            invitedUsers.map(async (uid: string) => {
+              const userRef = doc(db, 'users', uid);
+              const userDoc = await getDoc(userRef);
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                return {
+                  uid,
+                  email: userData.email,
+                  photoURL: userData.photoURL || USER_PROFILE,
+                  displayName: userData.displayName || userData.email
+                };
+              }
+              return null;
+            })
+          );
+
+          setLinkedUsers(userDetails.filter((user): user is LinkedUser => user !== null));
+        }
+      } catch (error) {
+        console.error('Error fetching linked users:', error);
+      }
+    };
+
+    fetchLinkedUsers();
+
+    return () => {
+      unsubscribeGroups();
+    };
+  }, [isAuthenticated, user]);
 
   // Show loading state while checking authentication
   if (isLoading) {
