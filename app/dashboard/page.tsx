@@ -510,7 +510,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isLoading) return;
 
-    const messages = [
+    const loadingMessages = [
       "Initializing your personal AI assistant...",
       "Loading your conversation history...",
       "Setting up real-time updates...",
@@ -521,8 +521,8 @@ export default function Dashboard() {
 
     const interval = setInterval(() => {
       setLoadingStep(prev => {
-        const next = (prev + 1) % messages.length;
-        setLoadingMessage(messages[next]);
+        const next = (prev + 1) % loadingMessages.length;
+        setLoadingMessage(loadingMessages[next]);
         return next;
       });
     }, 2000);
