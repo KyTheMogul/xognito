@@ -36,15 +36,14 @@ if (missingVars.length > 0) {
 const adminDb = getFirestore();
 
 // Function to get or create a valid UID from XloudID
-async function getOrCreateUidFromXloudId(token: string, adminDb: FirebaseFirestore.Firestore): Promise<string> {
-  // 1. Try to find an existing user with this xloudId
+async function getOrCreateUidFromXloudId(token: string): Promise<string> {
   const usersRef = adminDb.collection('users');
   const querySnapshot = await usersRef.where('xloudId', '==', token).limit(1).get();
+  
   if (!querySnapshot.empty) {
-    // User exists, return their UID
     return querySnapshot.docs[0].id;
   }
-  // 2. If not found, generate a new UID
+  
   const hash = crypto.createHash('sha256').update(token).digest('hex');
   return `xloudid_${hash.substring(0, 20)}`;
 }
@@ -52,16 +51,9 @@ async function getOrCreateUidFromXloudId(token: string, adminDb: FirebaseFiresto
 export async function POST(request: Request) {
   console.log("[XloudID API] POST request received");
   try {
-    const body = await request.json();
-    console.log("[XloudID API] Request body:", body);
+    const { token } = await request.json();
+    console.log("[XloudID API] Request body:", { token });
     
-    const { token } = body;
-    console.log("[XloudID API] Received token request:", {
-      tokenLength: token?.length,
-      tokenPrefix: token?.substring(0, 10) + "...",
-      timestamp: new Date().toISOString()
-    });
-
     if (!token) {
       console.log("[XloudID API] No token provided");
       return NextResponse.json(
@@ -70,8 +62,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get or create a valid UID from the token
-    const uid = await getOrCreateUidFromXloudId(token, adminDb);
+    const uid = await getOrCreateUidFromXloudId(token);
     console.log("[XloudID API] Using UID:", uid);
 
     let user;
@@ -92,7 +83,7 @@ export async function POST(request: Request) {
           emailVerified: true
         });
         user = await auth.createUser({
-          uid: uid,
+          uid,
           email: `${uid}@xloudid.com`,
           emailVerified: true,
           disabled: false
@@ -112,140 +103,25 @@ export async function POST(request: Request) {
       }
     }
 
-    // Set custom claims
-    console.log("[XloudID API] Setting custom claims for user:", uid);
-    await auth.setCustomUserClaims(uid, {
-      provider: 'xloudid',
-      originalToken: token,
-      emailVerified: true
-    });
-    console.log("[XloudID API] Custom claims set successfully");
-
-    // Create or update user document in Firestore
-    const userRef = adminDb.collection('users').doc(uid);
-    const userDoc = await userRef.get();
-
-    if (!userDoc.exists) {
-      console.log("[XloudID API] Creating new user document in Firestore");
-      try {
-        const userData = {
-          provider: 'xloudid',
-          xloudId: token,
-          createdAt: new Date(),
-          lastLogin: new Date(),
-          emailVerified: true,
-          settings: {
-            theme: 'system',
-            notifications: {
-              email: true,
-              push: true,
-              weeklyDigest: false,
-              groupRequests: true,
-            },
-            ai: {
-              model: 'default',
-              temperature: 0.7,
-              maxTokens: 2000,
-            },
-            memory: {
-              enabled: true,
-              retentionDays: 30,
-              autoArchive: true,
-            }
-          },
-          subscription: {
-            plan: 'free',
-            status: 'active',
-            startDate: new Date(),
-            nextBillingDate: new Date(),
-            billingHistory: [],
-            usage: {
-              messagesToday: 0,
-              filesUploaded: 0,
-              lastReset: new Date(),
-            }
-          }
-        };
-        await userRef.set(userData);
-        console.log("[XloudID API] User document created successfully in Firestore");
-      } catch (error) {
-        console.error("[XloudID API] Error creating user document:", error);
-        // If user document creation fails, delete the Firebase Auth user
-        try {
-          await auth.deleteUser(uid);
-          console.log("[XloudID API] Deleted Firebase Auth user due to Firestore failure");
-        } catch (deleteError) {
-          console.error("[XloudID API] Error deleting Firebase Auth user:", deleteError);
-        }
-        throw error; // Re-throw the error to fail the request
-      }
-    } else {
-      console.log("[XloudID API] Updating existing user document in Firestore");
-      try {
-        await userRef.update({
-          lastLogin: new Date(),
-          xloudId: token,
-          emailVerified: true
-        });
-        console.log("[XloudID API] User document updated successfully in Firestore");
-      } catch (error) {
-        console.error("[XloudID API] Error updating user document:", error);
-        // Fallback: If update fails, try to create the document
-        console.log("[XloudID API] Attempting to create user document as fallback");
-        const userData = {
-          provider: 'xloudid',
-          xloudId: token,
-          createdAt: new Date(),
-          lastLogin: new Date(),
-          emailVerified: true,
-          settings: {
-            theme: 'system',
-            notifications: {
-              email: true,
-              push: true,
-              weeklyDigest: false,
-              groupRequests: true,
-            },
-            ai: {
-              model: 'default',
-              temperature: 0.7,
-              maxTokens: 2000,
-            },
-            memory: {
-              enabled: true,
-              retentionDays: 30,
-              autoArchive: true,
-            }
-          },
-          subscription: {
-            plan: 'free',
-            status: 'active',
-            startDate: new Date(),
-            nextBillingDate: new Date(),
-            billingHistory: [],
-            usage: {
-              messagesToday: 0,
-              filesUploaded: 0,
-              lastReset: new Date(),
-            }
-          }
-        };
-        await userRef.set(userData);
-        console.log("[XloudID API] User document created successfully in Firestore as fallback");
-      }
-    }
-
-    // Create a custom token for our Firebase project
-    console.log("[XloudID API] Creating Firebase custom token for user:", uid);
-    const firebaseToken = await auth.createCustomToken(uid, {
-      provider: 'xloudid',
-      originalToken: token,
-      emailVerified: true
-    });
-    console.log("[XloudID API] Firebase token created successfully:", {
-      tokenLength: firebaseToken.length,
-      tokenPrefix: firebaseToken.substring(0, 10) + "..."
-    });
+    // Set custom claims and create/update user document in parallel
+    const [firebaseToken] = await Promise.all([
+      auth.createCustomToken(uid, {
+        provider: 'xloudid',
+        originalToken: token,
+        emailVerified: true
+      }),
+      auth.setCustomUserClaims(uid, {
+        provider: 'xloudid',
+        originalToken: token,
+        emailVerified: true
+      }),
+      adminDb.collection('users').doc(uid).set({
+        provider: 'xloudid',
+        xloudId: token,
+        lastLogin: new Date(),
+        emailVerified: true
+      }, { merge: true })
+    ]);
 
     const response = { 
       firebaseToken,

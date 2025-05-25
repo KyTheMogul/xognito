@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { initializeUserSettings } from '@/lib/settings';
 
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);
@@ -14,80 +12,47 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAuthenticated(!!user);
-      console.log("[XloudID] Auth state changed:", user ? "Authenticated" : "Not authenticated");
     });
-
     return () => unsubscribe();
   }, []);
 
   const handleAuth = useCallback(async () => {
-    console.log("[XloudID] handleAuth started");
     setIsLoading(true);
     setError(null);
 
     try {
-      // Get token from URL
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
       
-      if (!token) {
-        console.log("[XloudID] No token found in URL");
-        return;
-      }
+      if (!token) return;
 
-      console.log("[XloudID] Token found, exchanging for Firebase token");
+      // Clean up URL immediately
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, document.title, url.pathname);
       
       // Exchange token for Firebase token
       const response = await fetch('/api/auth/xloudid', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to exchange token: ${response.status} ${response.statusText}\n${errorText}`);
+        throw new Error(`Authentication failed: ${response.status}`);
       }
 
-      const { firebaseToken, user: userData } = await response.json();
+      const { firebaseToken } = await response.json();
       
       if (!firebaseToken) {
-        throw new Error("No Firebase token received from server");
+        throw new Error("No Firebase token received");
       }
 
       // Sign in with Firebase token
-      console.log("[XloudID] Attempting to sign in with Firebase token");
-      const userCredential = await signInWithCustomToken(auth, firebaseToken);
-      
-      // Wait for auth state to be properly set
-      await new Promise((resolve) => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          if (user) {
-            setIsAuthenticated(true);
-            unsubscribe();
-            resolve(true);
-          }
-        });
-      });
-
-      // Clean up URL by removing the token
-      const url = new URL(window.location.href);
-      url.searchParams.delete('token');
-      window.history.replaceState({}, document.title, url.pathname);
-
-      console.log("[XloudID] Authentication successful, redirecting to dashboard");
+      await signInWithCustomToken(auth, firebaseToken);
       router.replace('/dashboard');
     } catch (error) {
-      const authError = error as Error;
-      console.error("[XloudID] Authentication error:", {
-        code: authError.name,
-        message: authError.message,
-        stack: authError.stack
-      });
-      setError(authError);
-      
+      setError(error as Error);
       if (window.location.pathname !== '/') {
         router.push('/');
       }
