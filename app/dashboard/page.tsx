@@ -503,10 +503,10 @@ export default function Dashboard() {
   ]);
 
   // Add this near the top of the component, with other state declarations
-  const [loadingMessage, setLoadingMessage] = useState("Initializing your personal AI assistant...");
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [loadingStep, setLoadingStep] = useState(0);
+  const [isTyping, setIsTyping] = useState(true);
 
-  // Add this effect for dynamic loading messages
   useEffect(() => {
     if (!isLoading) return;
 
