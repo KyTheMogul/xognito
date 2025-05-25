@@ -1916,25 +1916,31 @@ When responding:
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("[Dashboard] Auth state changed:", user ? "Authenticated" : "Not authenticated");
+      
+      // Check if we have a token in the URL first
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      if (token) {
+        console.log("[Dashboard] Token found in URL, cleaning up URL first");
+        // Clean up URL immediately
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+        
+        try {
+          console.log("[Dashboard] Attempting authentication with token");
+          await handleAuth();
+        } catch (error) {
+          console.error("[Dashboard] Authentication failed:", error);
+          router.push('/');
+        }
+        return;
+      }
+      
       setIsAuthenticated(!!user);
       setIsLoading(false);
       
       if (!user) {
-        // Check if we have a token in the URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        
-        if (token) {
-          console.log("[Dashboard] Token found in URL, attempting authentication");
-          try {
-            await handleAuth();
-          } catch (error) {
-            console.error("[Dashboard] Authentication failed:", error);
-            router.push('/');
-          }
-          return;
-        }
-        
         console.log("[Dashboard] No authenticated user and no token, redirecting to home");
         router.push('/');
       } else {
@@ -1949,106 +1955,11 @@ When responding:
         setDisplayName(user.displayName || '');
         setEmail(user.email || '');
         setPhoneNumber(user.phoneNumber || '');
-        // Optionally, reset other state as needed
       }
     });
 
     return () => unsubscribe();
   }, [router, handleAuth]);
-
-  // Handle Stripe session completion
-  useEffect(() => {
-    const checkSessionStatus = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('session_id');
-
-      if (sessionId) {
-        console.log('[Dashboard] Found Stripe session ID:', sessionId);
-        try {
-          // Verify session status
-          console.log('[Dashboard] Verifying session status...');
-          const response = await fetch(`/api/stripe/verify-session?session_id=${sessionId}`);
-          const data = await response.json();
-          console.log('[Dashboard] Session verification response:', data);
-
-          if (data.status === 'complete') {
-            console.log('[Dashboard] Payment successful, updating subscription data');
-            const user = auth.currentUser;
-            if (user) {
-              // Get the session details
-              const sessionResponse = await fetch(`/api/stripe/get-session?session_id=${sessionId}`);
-              const sessionData = await sessionResponse.json();
-              
-              if (sessionData.success) {
-                const { customer, subscription, metadata } = sessionData.session;
-                
-                // Update user document
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, {
-                  plan: metadata.plan || 'pro',
-                  subscriptionStatus: 'active',
-                  stripeCustomerId: customer,
-                  subscriptionId: subscription,
-                  updatedAt: new Date().toISOString()
-                });
-
-                // Update billing document
-              const billingRef = doc(db, 'users', user.uid, 'settings', 'billing');
-                await setDoc(billingRef, {
-                  plan: metadata.plan || 'pro',
-                  status: 'active',
-                  stripeCustomerId: customer,
-                  stripeSubscriptionId: subscription,
-                  startDate: new Date().toISOString(),
-                  nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-                  cancelAtPeriodEnd: false,
-                  billingHistory: arrayUnion({
-                    date: new Date().toISOString(),
-                    type: 'subscription_created',
-                    amount: 0, // Free with promo code
-                    currency: 'usd',
-                    status: 'succeeded'
-                  }),
-                  updatedAt: new Date().toISOString()
-                }, { merge: true });
-
-                // Refresh subscription data
-              const billingDoc = await getDoc(billingRef);
-              if (billingDoc.exists()) {
-                const data = billingDoc.data();
-                setUserSubscription({
-                  plan: data.plan,
-                  isActive: data.status === 'active' || data.status === 'trialing',
-                  stripeCustomerId: data.stripeCustomerId,
-                  stripeSubscriptionId: data.stripeSubscriptionId,
-                  startDate: data.startDate,
-                  nextBillingDate: data.nextBillingDate,
-                  trialEndsAt: data.trialEndsAt,
-                  status: data.status,
-                  billingHistory: data.billingHistory || [],
-                  isInvitedUser: data.isInvitedUser,
-                  inviterEmail: data.inviterEmail,
-                  billingGroup: data.billingGroup,
-                  xloudId: data.xloudId
-                });
-                }
-              }
-            }
-          } else {
-            console.log('[Dashboard] Payment not complete:', data.status);
-          }
-
-          // Clean up URL
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, '', newUrl);
-        } catch (error) {
-          console.error('[Dashboard] Error verifying session:', error);
-        }
-      }
-    };
-
-    checkSessionStatus();
-  }, []);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -2058,6 +1969,9 @@ When responding:
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
           <h1 className="text-2xl font-bold mb-4 text-white">Loading...</h1>
           <p className="text-zinc-400">Please wait while we verify your authentication.</p>
+          <div className="mt-4 text-sm text-zinc-500">
+            This may take a few moments...
+          </div>
         </div>
       </div>
     );
