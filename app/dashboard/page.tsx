@@ -2341,7 +2341,7 @@ When responding:
         {/* History header */}
         <div className="text-zinc-300 font-bold px-6 py-3 text-sm tracking-wide">History</div>
         {/* Chat history list */}
-        <div className="flex flex-col gap-2 px-4 pb-4">
+        <div className="flex flex-col gap-2 px-4 pb-4 max-h-[calc(100vh-400px)] overflow-y-auto custom-scrollbar">
           {filteredChats.length === 0 ? (
             <span className="text-zinc-500 text-xs px-2 py-1">
               {search ? 'No chats found matching your search.' : 'No chats found.'}
