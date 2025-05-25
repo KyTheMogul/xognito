@@ -1922,40 +1922,45 @@ When responding:
       const token = urlParams.get('token');
       
       if (token) {
-        console.log("[Dashboard] Token found in URL, cleaning up URL first");
-        // Clean up URL immediately
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-        
+        console.log("[Dashboard] Token found in URL, attempting authentication");
         try {
-          console.log("[Dashboard] Attempting authentication with token");
+          // Clean up URL immediately
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+          
           await handleAuth();
+          setIsAuthenticated(true);
+          setIsLoading(false);
         } catch (error) {
           console.error("[Dashboard] Authentication failed:", error);
+          setIsLoading(false);
           router.push('/');
         }
         return;
       }
       
-      setIsAuthenticated(!!user);
-      setIsLoading(false);
-      
       if (!user) {
         console.log("[Dashboard] No authenticated user and no token, redirecting to home");
+        setIsLoading(false);
         router.push('/');
-      } else {
-        // Reset all user-specific state when user changes
-        setConversations([]);
-        setMessages([]);
-        setUserSubscription(null);
-        setUploads([]);
-        setActiveConversationId(null);
-        setLinkedUsers([]);
-        setUser(user);
-        setDisplayName(user.displayName || '');
-        setEmail(user.email || '');
-        setPhoneNumber(user.phoneNumber || '');
+        return;
       }
+
+      // User is authenticated
+      setIsAuthenticated(true);
+      setIsLoading(false);
+      
+      // Reset all user-specific state when user changes
+      setConversations([]);
+      setMessages([]);
+      setUserSubscription(null);
+      setUploads([]);
+      setActiveConversationId(null);
+      setLinkedUsers([]);
+      setUser(user);
+      setDisplayName(user.displayName || '');
+      setEmail(user.email || '');
+      setPhoneNumber(user.phoneNumber || '');
     });
 
     return () => unsubscribe();
