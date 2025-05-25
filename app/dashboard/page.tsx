@@ -2088,17 +2088,14 @@ When responding:
   // Replace the existing loading state JSX with this enhanced version
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="text-center max-w-md px-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
-          <h1 className="text-2xl font-bold mb-4 text-white">Welcome to Xognito</h1>
-          <div className="space-y-4">
-            <p className="text-zinc-400 animate-fade-in">
-              {loadingMessage}
-            </p>
-            <div className="text-sm text-zinc-500">
-              <p>I'm getting everything ready for you...</p>
-              <p className="mt-2">This will only take a moment.</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+        <div className="text-center space-y-6">
+          <div className="flex items-center justify-center space-x-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+            <div className="text-xl text-white/90">
+              <span className={`typewriter ${isTyping ? '' : 'animate-fade-in'}`}>
+                {loadingMessage}
+              </span>
             </div>
           </div>
         </div>
