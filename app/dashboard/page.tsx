@@ -502,6 +502,34 @@ export default function Dashboard() {
     "What are my current learning goals?"
   ]);
 
+  // Add this near the top of the component, with other state declarations
+  const [loadingMessage, setLoadingMessage] = useState("Initializing your personal AI assistant...");
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // Add this effect for dynamic loading messages
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const messages = [
+      "Initializing your personal AI assistant...",
+      "Loading your conversation history...",
+      "Setting up real-time updates...",
+      "Preparing your workspace...",
+      "Almost ready to chat...",
+      "Just a moment while I get everything ready..."
+    ];
+
+    const interval = setInterval(() => {
+      setLoadingStep(prev => {
+        const next = (prev + 1) % messages.length;
+        setLoadingMessage(messages[next]);
+        return next;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
   // Function to generate personalized prompts based on memories
   const generatePersonalizedPrompts = async (userId: string) => {
     try {
@@ -2057,16 +2085,21 @@ When responding:
     };
   }, [isAuthenticated, user]);
 
-  // Show loading state while checking authentication
+  // Replace the existing loading state JSX with this enhanced version
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="text-center">
+        <div className="text-center max-w-md px-4">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
-          <h1 className="text-2xl font-bold mb-4 text-white">Loading...</h1>
-          <p className="text-zinc-400">Please wait while we verify your authentication.</p>
-          <div className="mt-4 text-sm text-zinc-500">
-            This may take a few moments...
+          <h1 className="text-2xl font-bold mb-4 text-white">Welcome to Xognito</h1>
+          <div className="space-y-4">
+            <p className="text-zinc-400 animate-fade-in">
+              {loadingMessage}
+            </p>
+            <div className="text-sm text-zinc-500">
+              <p>I'm getting everything ready for you...</p>
+              <p className="mt-2">This will only take a moment.</p>
+            </div>
           </div>
         </div>
       </div>
