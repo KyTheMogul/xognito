@@ -147,7 +147,9 @@ export default function SignUp() {
         }
       });
 
-      router.push('/dashboard');
+      // Use replace instead of push to prevent back navigation
+      console.log('[Signup] Redirecting to dashboard after successful signup');
+      router.replace('/dashboard');
     } catch (error: any) {
       console.error('Username setup error:', error);
       setError(error.message || 'Failed to set up username');

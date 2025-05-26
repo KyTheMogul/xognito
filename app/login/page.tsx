@@ -172,8 +172,9 @@ export default function Login() {
         emailVerified: user.emailVerified
       });
 
-      // Redirect to dashboard
-      router.push('/dashboard');
+      // Use replace instead of push to prevent back navigation
+      console.log('[Login] Redirecting to dashboard after successful login');
+      router.replace('/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
