@@ -73,6 +73,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
+import { fetchDeepSeekResponseStream } from '../../lib/ai';
+import PDFPreview from '../components/PDFPreview';
 
 const USER_PROFILE = '/ChatGPT Image May 23, 2025, 06_50_00 AM.png';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -92,78 +94,6 @@ interface NotificationMemory {
   id: string;
   summary: string;
   type: 'short' | 'relationship' | 'deep';
-}
-
-// Add DeepSeek API integration with streaming support
-async function fetchDeepSeekResponseStream(
-  messages: { role: 'user' | 'system' | 'assistant'; content: string }[],
-  onChunk: (chunk: string) => void
-): Promise<void> {
-  try {
-    console.log("[DeepSeek] Starting API call with messages:", messages);
-    const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-      body: JSON.stringify({ messages }),
-    });
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("[DeepSeek] API error:", {
-        status: res.status,
-        statusText: res.statusText,
-        error: errorText,
-        headers: Object.fromEntries(res.headers.entries())
-      });
-      throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorText}`);
-    }
-    if (!res.body) {
-      console.error("[DeepSeek] No response body");
-      throw new Error('No response body from DeepSeek API');
-    }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let buffer = '';
-  let done = false;
-  while (!done) {
-    const { value, done: doneReading } = await reader.read();
-    done = doneReading;
-    if (value) {
-      buffer += decoder.decode(value, { stream: true });
-      let lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-        const data = trimmed.replace(/^data:/, '');
-          if (data === '[DONE]') {
-            console.log("[DeepSeek] Stream complete");
-            return;
-          }
-        try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              console.log("[DeepSeek] Received chunk:", delta);
-              onChunk(delta);
-            }
-          } catch (e) {
-            console.error("[DeepSeek] Error parsing chunk:", e, "Raw data:", data);
-          }
-      }
-    }
-    }
-  } catch (error) {
-    console.error("[DeepSeek] Error in API call:", {
-      error,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    // Send a more informative fallback response
-    onChunk("I apologize, but I'm having trouble connecting to my language model. Please check your internet connection and API configuration. Error: " + (error instanceof Error ? error.message : 'Unknown error'));
-    throw error;
-  }
 }
 
 // Helper to parse code blocks from AI response (triple backtick or indented)
@@ -904,6 +834,14 @@ export default function Dashboard() {
                             input.toLowerCase().includes('create a picture') ||
                             input.toLowerCase().includes('make a picture');
 
+      // Check if this is a PDF generation request
+      const isPdfRequest = input.toLowerCase().includes('generate pdf') ||
+                          input.toLowerCase().includes('create pdf') ||
+                          input.toLowerCase().includes('make pdf') ||
+                          input.toLowerCase().includes('generate document') ||
+                          input.toLowerCase().includes('create document') ||
+                          input.toLowerCase().includes('make document');
+
       let aiMessageId = '';
       let aiResponse = '';
 
@@ -952,6 +890,58 @@ export default function Dashboard() {
           const errorMessage: Omit<Message, 'timestamp'> = {
             sender: 'ai',
             text: "I apologize, but I encountered an error while generating the image. Please try again.",
+            thinking: false
+          };
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage);
+        }
+      } else if (isPdfRequest) {
+        try {
+          // Add initial AI message with thinking state
+          const initialAiMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: "Generating PDF document...",
+            thinking: true
+          };
+          aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
+
+          // Call PDF generation API
+          const response = await fetch('/api/generate-pdf', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              content: input,
+              title: 'Generated Document'
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to generate PDF');
+          }
+
+          const result = await response.json();
+          
+          // Update AI message with the generated PDF
+          const updatedAiMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: "Here's your generated PDF document:",
+            files: [{
+              id: Date.now().toString(),
+              url: `data:application/pdf;base64,${result.pdf}`,
+              type: 'pdf',
+              name: 'generated-document.pdf',
+              file: new File([], 'generated-document.pdf')
+            }],
+            thinking: false
+          };
+          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage);
+        } catch (error) {
+          console.error("[Dashboard] Error generating PDF:", error);
+          // Update with error message
+          const errorMessage: Omit<Message, 'timestamp'> = {
+            sender: 'ai',
+            text: "I apologize, but I encountered an error while generating the PDF. Please try again.",
             thinking: false
           };
           await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage);
@@ -2530,6 +2520,8 @@ When responding:
                                 )} 
                               />
                             </div>
+                          ) : f.type === 'pdf' ? (
+                            <PDFPreview key={f.id} name={f.name} url={f.url} />
                           ) : (
                             <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
                               {f.name}
