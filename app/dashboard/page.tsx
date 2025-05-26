@@ -356,17 +356,26 @@ function getFirstName(displayName: string | null): string {
 // Force new deployment - May 15, 2024
 export default function Dashboard() {
   const router = useRouter();
-  const { isAuthenticated: authState } = useAuth();
+  const { isAuthenticated: authState, handleAuth } = useAuth();
 
   useEffect(() => {
-    if (!authState) {
-      // Removed redirection to landing page
-      // router.replace('/');
+    // Check for token in URL and handle authentication
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    if (token) {
+      handleAuth();
+    } else if (!authState) {
+      router.replace('/');
     }
-  }, [authState, router]);
+  }, [authState, router, handleAuth]);
 
   if (!authState) {
-    return null; // or a loading spinner
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white"></div>
+      </div>
+    );
   }
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -477,8 +486,6 @@ export default function Dashboard() {
   const [cropper, setCropper] = useState<Cropper | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-
-  const { handleAuth } = useAuth();
 
   const [isChangingPlan, setIsChangingPlan] = useState(false);
   const [promoCode, setPromoCode] = useState('');
