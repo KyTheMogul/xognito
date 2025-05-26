@@ -357,25 +357,57 @@ function getFirstName(displayName: string | null): string {
 export default function Dashboard() {
   const router = useRouter();
   const { isAuthenticated: authState, handleAuth } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState('Initializing...');
 
   useEffect(() => {
-    // Check for token in URL and handle authentication
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    
-    if (token) {
-      handleAuth();
-    } else if (!authState) {
-      router.replace('/');
-    }
+    const initializeAuth = async () => {
+      try {
+        // Check for token in URL and handle authentication
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (token) {
+          setAuthStatus('Authenticating...');
+          await handleAuth();
+        } else if (!authState) {
+          router.replace('/');
+        }
+      } catch (error) {
+        console.error('Authentication error:', error);
+        router.replace('/');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, [authState, router, handleAuth]);
 
-  if (!authState) {
+  // Replace the existing loading state JSX with this enhanced version
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white"></div>
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="text-center max-w-md px-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+          <h1 className="text-2xl font-bold mb-4 text-white">Welcome to Xognito</h1>
+          <div className="space-y-4">
+            <p className="text-zinc-400 animate-fade-in">
+              {authStatus}
+            </p>
+            <div className="text-sm text-zinc-500">
+              <p>I'm getting everything ready for you...</p>
+              <p className="mt-2">This will only take a moment.</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
+  }
+
+  // Only render content if authenticated
+  if (!authState) {
+    return null; // Will redirect in useEffect
   }
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -387,7 +419,6 @@ export default function Dashboard() {
   const [conversations, setConversations] = useState<ConversationWithId[]>([]);
   const [messages, setMessages] = useState<MessageWithId[]>([]);
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -2223,7 +2254,7 @@ Remember: You're not just an AI assistant — you're a thinking, learning entity
           <h1 className="text-2xl font-bold mb-4 text-white">Welcome to Xognito</h1>
           <div className="space-y-4">
             <p className="text-zinc-400 animate-fade-in">
-              {loadingMessage}
+              {authStatus}
             </p>
             <div className="text-sm text-zinc-500">
               <p>I'm getting everything ready for you...</p>
