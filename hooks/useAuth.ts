@@ -1,37 +1,22 @@
 import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
-import { signInWithCustomToken, onAuthStateChanged, User } from 'firebase/auth';
+import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
 export function useAuth() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('[Auth] Auth state changed:', { 
-        isAuthenticated: !!user,
-        uid: user?.uid,
-        email: user?.email
-      });
-      setUser(user);
       setIsAuthenticated(!!user);
-      setIsLoading(false);
-
-      // If user is authenticated and on the home page, redirect to dashboard
-      if (user && window.location.pathname === '/') {
-        console.log('[Auth] User is authenticated, redirecting to dashboard');
-        router.replace('/dashboard');
-      }
     });
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
   const handleAuth = useCallback(async () => {
-    console.log('[Auth] Starting authentication process');
     setIsLoading(true);
     setError(null);
 
@@ -39,13 +24,8 @@ export function useAuth() {
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
       
-      if (!token) {
-        console.log('[Auth] No token found in URL');
-        return;
-      }
+      if (!token) return;
 
-      console.log('[Auth] Token found, exchanging for Firebase token');
-      
       // Clean up URL immediately
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
@@ -59,34 +39,23 @@ export function useAuth() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[Auth] Token exchange failed:', errorData);
-        throw new Error(`Authentication failed: ${response.status} - ${errorData.message || 'Unknown error'}`);
+        throw new Error(`Authentication failed: ${response.status}`);
       }
 
       const { firebaseToken } = await response.json();
       
       if (!firebaseToken) {
-        console.error('[Auth] No Firebase token received');
         throw new Error("No Firebase token received");
       }
 
-      console.log('[Auth] Firebase token received, signing in');
-      
       // Sign in with Firebase token
-      const userCredential = await signInWithCustomToken(auth, firebaseToken);
-      console.log('[Auth] Sign in successful:', {
-        uid: userCredential.user.uid,
-        email: userCredential.user.email
-      });
-
-      // Redirect to dashboard after successful authentication
-      console.log('[Auth] Redirecting to dashboard');
+      await signInWithCustomToken(auth, firebaseToken);
       router.replace('/dashboard');
     } catch (error) {
-      console.error('[Auth] Authentication error:', error);
       setError(error as Error);
-      // Don't redirect on error, let the component handle it
+      if (window.location.pathname !== '/') {
+        router.push('/');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +65,6 @@ export function useAuth() {
     handleAuth,
     isLoading,
     error,
-    isAuthenticated,
-    user
+    isAuthenticated
   };
 } 

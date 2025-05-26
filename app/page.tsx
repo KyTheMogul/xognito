@@ -11,11 +11,9 @@ import { signInWithCustomToken } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { initializeUserSettings } from '@/lib/settings';
 import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
 
 export default function LandingPage() {
   console.log("[XloudID] Landing page component mounted");
-  const { handleAuth, isAuthenticated, isLoading } = useAuth();
   const [pricingOpen, setPricingOpen] = useState(false);
   const [proFeaturesExpanded, setProFeaturesExpanded] = useState(false);
   const [proPlusFeaturesExpanded, setProPlusFeaturesExpanded] = useState(false);
@@ -58,19 +56,11 @@ export default function LandingPage() {
   const pricingInView = useInView(pricingRef, { once: true });
   const whyInView = useInView(whyRef, { once: true });
   const joinNowInView = useInView(joinNowRef, { once: true });
-  const router = useRouter();
+  const { handleAuth } = useAuth();
 
   useEffect(() => {
     console.log("[XloudID] useEffect triggered");
-    
-    // Check for token in URL and handle authentication
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    
-    if (token) {
-      console.log("[XloudID] Token found in URL, initiating authentication");
-      handleAuth();
-    }
+    handleAuth();
 
     const eventDate = new Date();
     eventDate.setDate(eventDate.getDate() + 14);
@@ -122,10 +112,16 @@ export default function LandingPage() {
     return () => {
       clearInterval(interval);
     };
-  }, [handleAuth]);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
+    if (e.target.value.length > 0) {
+      // Redirect to XloudID auth with proper parameters
+      const redirectUrl = encodeURIComponent('https://xognito.com/dashboard');
+      const email = encodeURIComponent(e.target.value);
+      window.location.href = `https://auth.xloudone.com/signup?email=${email}&redirect=${redirectUrl}`;
+    }
   };
 
   const handleInputClick = () => {
