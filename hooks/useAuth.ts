@@ -13,14 +13,11 @@ export function useAuth() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAuthenticated(!!user);
       if (user) {
-        // If user is authenticated and on the landing page, redirect to dashboard
-        if (window.location.pathname === '/') {
+        // Only redirect to dashboard if we're on the landing page and have a token
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (window.location.pathname === '/' && token) {
           router.replace('/dashboard');
-        }
-      } else {
-        // If user is not authenticated and on a protected page, redirect to landing
-        if (window.location.pathname !== '/') {
-          router.replace('/');
         }
       }
     });
@@ -64,9 +61,7 @@ export function useAuth() {
       // The onAuthStateChanged listener will handle the redirection
     } catch (error) {
       setError(error as Error);
-      if (window.location.pathname !== '/') {
-        router.push('/');
-      }
+      console.error('Authentication error:', error);
     } finally {
       setIsLoading(false);
     }
