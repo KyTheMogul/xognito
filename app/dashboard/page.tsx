@@ -73,8 +73,6 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'react-toastify';
 import { cn } from '@/lib/utils';
-import { fetchDeepSeekResponseStream } from '../../lib/ai';
-import PDFPreview from '../components/PDFPreview';
 
 const USER_PROFILE = '/ChatGPT Image May 23, 2025, 06_50_00 AM.png';
 const AI_PROFILE = '/XognitoLogoFull.png';
@@ -96,6 +94,78 @@ interface NotificationMemory {
   type: 'short' | 'relationship' | 'deep';
 }
 
+// Add DeepSeek API integration with streaming support
+async function fetchDeepSeekResponseStream(
+  messages: { role: 'user' | 'system' | 'assistant'; content: string }[],
+  onChunk: (chunk: string) => void
+): Promise<void> {
+  try {
+    console.log("[DeepSeek] Starting API call with messages:", messages);
+    const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+      body: JSON.stringify({ messages }),
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("[DeepSeek] API error:", {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorText,
+        headers: Object.fromEntries(res.headers.entries())
+      });
+      throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorText}`);
+    }
+    if (!res.body) {
+      console.error("[DeepSeek] No response body");
+      throw new Error('No response body from DeepSeek API');
+    }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let done = false;
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    if (value) {
+      buffer += decoder.decode(value, { stream: true });
+      let lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        const data = trimmed.replace(/^data:/, '');
+          if (data === '[DONE]') {
+            console.log("[DeepSeek] Stream complete");
+            return;
+          }
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              console.log("[DeepSeek] Received chunk:", delta);
+              onChunk(delta);
+            }
+          } catch (e) {
+            console.error("[DeepSeek] Error parsing chunk:", e, "Raw data:", data);
+          }
+      }
+    }
+    }
+  } catch (error) {
+    console.error("[DeepSeek] Error in API call:", {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    // Send a more informative fallback response
+    onChunk("I apologize, but I'm having trouble connecting to my language model. Please check your internet connection and API configuration. Error: " + (error instanceof Error ? error.message : 'Unknown error'));
+    throw error;
+  }
+}
+
 // Helper to parse code blocks from AI response (triple backtick or indented)
 function renderAIMessage(text: string) {
   try {
@@ -115,7 +185,6 @@ function renderAIMessage(text: string) {
 
     if (hasNumberedList || hasBulletList) {
       // Split the text into before list, list items, and after list
-      // Updated regex to better handle multi-line list items and complex formatting
       const listRegex = /((?:\d+\.|\*)\s+[^\n]+(?:\n(?!\d+\.|\*)[^\n]*)*)/g;
       const listMatches = Array.from(text.matchAll(listRegex));
       
@@ -194,9 +263,11 @@ function renderAIMessage(text: string) {
       }
     }
 
-    // If no list found, format the text with proper spacing
+    // Format text with proper spacing and bold text
     const formattedText = text
       .replace(/\n\n+/g, '\n\n')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Replace ** with bold
+      .replace(/\*\*\*(.*?)\*\*\*/g, '<strong>$1</strong>') // Replace *** with bold
       .replace(/\n/g, '<br />');
 
     return <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formattedText }} />;
@@ -834,14 +905,6 @@ export default function Dashboard() {
                             input.toLowerCase().includes('create a picture') ||
                             input.toLowerCase().includes('make a picture');
 
-      // Check if this is a PDF generation request
-      const isPdfRequest = input.toLowerCase().includes('generate pdf') ||
-                          input.toLowerCase().includes('create pdf') ||
-                          input.toLowerCase().includes('make pdf') ||
-                          input.toLowerCase().includes('generate document') ||
-                          input.toLowerCase().includes('create document') ||
-                          input.toLowerCase().includes('make document');
-
       let aiMessageId = '';
       let aiResponse = '';
 
@@ -894,58 +957,6 @@ export default function Dashboard() {
           };
           await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage);
         }
-      } else if (isPdfRequest) {
-        try {
-          // Add initial AI message with thinking state
-          const initialAiMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "Generating PDF document...",
-            thinking: true
-          };
-          aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
-
-          // Call PDF generation API
-          const response = await fetch('/api/generate-pdf', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              content: input,
-              title: 'Generated Document'
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to generate PDF');
-          }
-
-          const result = await response.json();
-          
-          // Update AI message with the generated PDF
-          const updatedAiMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "Here's your generated PDF document:",
-            files: [{
-              id: Date.now().toString(),
-              url: `data:application/pdf;base64,${result.pdf}`,
-              type: 'pdf',
-              name: 'generated-document.pdf',
-              file: new File([], 'generated-document.pdf')
-            }],
-            thinking: false
-          };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage);
-        } catch (error) {
-          console.error("[Dashboard] Error generating PDF:", error);
-          // Update with error message
-          const errorMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "I apologize, but I encountered an error while generating the PDF. Please try again.",
-            thinking: false
-          };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage);
-        }
       } else {
         // Add initial AI message
         const initialAiMessage: Omit<Message, 'timestamp'> = {
@@ -964,11 +975,10 @@ Your personality is calm, focused, and sharply intelligent — like JARVIS from 
 
 You have the following capabilities:
 1. Generate images using Stability AI when users ask for images, logos, or drawings
-2. Generate PDF documents when users ask for PDFs or documents
-3. Remember important information from conversations
-4. Provide thoughtful, detailed responses
-5. Help with tasks, planning, and problem-solving
-6. Maintain context across conversations
+2. Remember important information from conversations
+3. Provide thoughtful, detailed responses
+4. Help with tasks, planning, and problem-solving
+5. Maintain context across conversations
 
 Guidelines:
 1. Be concise but thorough
@@ -979,78 +989,31 @@ Guidelines:
    - DO NOT ask for details about the image
    - Let the system handle the actual image generation
    - The system will automatically detect image requests and handle them
-4. For PDF generation:
-   - DO NOT respond to PDF generation requests with text
-   - DO NOT try to generate PDFs yourself or provide PDF URLs
-   - DO NOT ask for details about the PDF
-   - Let the system handle the actual PDF generation
-   - The system will automatically detect PDF requests and handle them
-5. Remember important details from the conversation
-6. If you're not sure about something, say so
-7. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
-8. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate
-9. ALWAYS respond with properly formatted text, not JSON or raw data
-10. For recipes, format them clearly with:
-    - Title
-    - Ingredients list
-    - Step-by-step instructions
-    - Any additional notes or tips
-11. NEVER include any raw data, JSON, or technical details in your responses
-12. NEVER include any system messages, error messages, or debug information
-13. If you encounter an error or can't complete a request, respond with a simple, user-friendly message
+4. Remember important details from the conversation
+5. If you're not sure about something, say so
+6. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
+7. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate
 
 ${memoryContext}`
           },
           { role: 'user', content: input }
         ];
 
-        let aiResponse = '';
-        let isGeneratingImage = false;
-        let isGeneratingPDF = false;
-
+        console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
         try {
-          await fetchDeepSeekResponseStream(messagesForAI, (chunk: string) => {
-            // Only process the actual content, ignore all JSON metadata
-            if (chunk.startsWith('data: ')) {
-              try {
-                const jsonData = JSON.parse(chunk.slice(6));
-                if (jsonData.choices?.[0]?.delta?.content) {
-                  aiResponse += jsonData.choices[0].delta.content;
-                }
-              } catch (e) {
-                // Silently ignore any parsing errors
-                return;
-              }
-            } else if (!chunk.includes('"object":"chat.completion.chunk"') && 
-                      !chunk.includes('"finish_reason"') && 
-                      !chunk.includes('[DONE]')) {
-              // Only add non-JSON chunks that aren't metadata
-              aiResponse += chunk;
-            }
-
+          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
+            console.log("[Dashboard] Received chunk:", chunk);
+            aiResponse += chunk;
             // Update the AI message in Firestore with the current response
             const updatedAiMessage: Omit<Message, 'timestamp'> = {
               sender: 'ai',
               text: aiResponse,
               thinking: false
             };
-            
-            if (currentConversationId && aiMessageId) {
-              const aiMessageRef = doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId);
-              updateDoc(aiMessageRef, updatedAiMessage)
-                .catch(error => {
-                  console.error("[Dashboard] Error updating AI message:", error);
-                });
-            }
-
-            setMessages(prev => {
-              const newMessages = [...prev];
-              const lastMessage = newMessages[newMessages.length - 1];
-              if (lastMessage && lastMessage.sender === 'ai') {
-                lastMessage.text = aiResponse;
-              }
-              return newMessages;
-            });
+            updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage)
+              .catch(error => {
+                console.error("[Dashboard] Error updating AI message:", error);
+              });
           });
           console.log("[Dashboard] Stream complete, final response:", aiResponse);
 
@@ -2568,8 +2531,6 @@ When responding:
                                 )} 
                               />
                             </div>
-                          ) : f.type === 'pdf' ? (
-                            <PDFPreview key={f.id} name={f.name} url={f.url} />
                           ) : (
                             <div key={f.id} className="rounded-xl bg-zinc-800 text-zinc-200 px-4 py-2 text-xs font-mono border border-zinc-700">
                               {f.name}
