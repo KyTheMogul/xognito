@@ -995,6 +995,9 @@ Guidelines:
     - Ingredients list
     - Step-by-step instructions
     - Any additional notes or tips
+11. NEVER include any raw data, JSON, or technical details in your responses
+12. NEVER include any system messages, error messages, or debug information
+13. If you encounter an error or can't complete a request, respond with a simple, user-friendly message
 
 ${memoryContext}`
           },
@@ -1007,33 +1010,22 @@ ${memoryContext}`
 
         try {
           await fetchDeepSeekResponseStream(messagesForAI, (chunk: string) => {
-            // Check if the chunk is JSON data
+            // Only process the actual content, ignore all JSON metadata
             if (chunk.startsWith('data: ')) {
               try {
                 const jsonData = JSON.parse(chunk.slice(6));
-                if (jsonData.choices && jsonData.choices[0].delta.content) {
+                if (jsonData.choices?.[0]?.delta?.content) {
                   aiResponse += jsonData.choices[0].delta.content;
                 }
               } catch (e) {
-                // If it's not valid JSON, treat it as regular text
-                aiResponse += chunk;
+                // Silently ignore any parsing errors
+                return;
               }
-            } else {
+            } else if (!chunk.includes('"object":"chat.completion.chunk"') && 
+                      !chunk.includes('"finish_reason"') && 
+                      !chunk.includes('[DONE]')) {
+              // Only add non-JSON chunks that aren't metadata
               aiResponse += chunk;
-            }
-
-            // Check for image generation request
-            if (aiResponse.toLowerCase().includes('generate an image') || 
-                aiResponse.toLowerCase().includes('create an image') ||
-                aiResponse.toLowerCase().includes('draw')) {
-              isGeneratingImage = true;
-            }
-
-            // Check for PDF generation request
-            if (aiResponse.toLowerCase().includes('generate a pdf') || 
-                aiResponse.toLowerCase().includes('create a pdf') ||
-                aiResponse.toLowerCase().includes('make a pdf')) {
-              isGeneratingPDF = true;
             }
 
             // Update the AI message in Firestore with the current response
