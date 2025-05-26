@@ -631,8 +631,9 @@ export default function Dashboard() {
         return;
       }
       console.log('[Dashboard] Creating new conversation for user:', user.uid);
-      const newConversation = await createConversation(user.uid);
-      setActiveConversationId(newConversation.id);
+      const conversationId = await createConversation(user.uid);
+      console.log('[Dashboard] New conversation created:', conversationId);
+      setActiveConversationId(conversationId);
       setMessages([]);
     } catch (error) {
       console.error('[Dashboard] Error creating new chat:', error);
@@ -659,8 +660,8 @@ export default function Dashboard() {
       setInput('');
       
       // Add user message
-      const userMessage: Message = {
-        sender: 'user',
+      const userMessage = {
+        sender: 'user' as const,
         text: messageText,
         files: uploads
       };
@@ -670,7 +671,7 @@ export default function Dashboard() {
       
       // Add message to conversation
       if (activeConversationId && user?.uid) {
-        await addMessage(activeConversationId, userMessage, user.uid);
+        await addMessage(activeConversationId, messageText, user.uid);
       }
     } catch (error) {
       console.error('[Dashboard] Error sending message:', error);
