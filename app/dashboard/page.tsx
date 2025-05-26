@@ -412,8 +412,10 @@ export default function Dashboard() {
       }
     };
 
-    initializeAuth();
-  }, [handleAuth]);
+    if (!authLoading) {
+      initializeAuth();
+    }
+  }, [authLoading, handleAuth]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -421,7 +423,20 @@ export default function Dashboard() {
     }
   }, [authLoading, user, router]);
 
-  if (authLoading || isLoading) {
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state while initializing
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center">
@@ -432,8 +447,26 @@ export default function Dashboard() {
     );
   }
 
+  // Show error state if there's an error
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <p className="text-red-500 text-lg mb-4">{error}</p>
+          <button
+            onClick={() => router.replace('/')}
+            className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-200"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If not authenticated, return null (will be redirected by useEffect)
   if (!user) {
-    return null; // Will be redirected by the useEffect above
+    return null;
   }
 
   // ... rest of the existing code ...

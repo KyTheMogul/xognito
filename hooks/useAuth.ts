@@ -12,7 +12,14 @@ export function useAuth() {
   const pathname = usePathname();
 
   useEffect(() => {
+    console.log('[useAuth] Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('[useAuth] Auth state changed:', { 
+        hasUser: !!user,
+        uid: user?.uid,
+        pathname 
+      });
+      
       setUser(user);
       setIsAuthenticated(!!user);
       setIsLoading(false);
@@ -22,17 +29,24 @@ export function useAuth() {
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         if (pathname === '/' && token) {
+          console.log('[useAuth] Redirecting to dashboard with token');
           router.replace('/dashboard');
         }
       } else if (pathname === '/dashboard') {
         // If user is not authenticated and trying to access dashboard, redirect to landing
+        console.log('[useAuth] User not authenticated, redirecting to landing');
         router.replace('/');
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      console.log('[useAuth] Cleaning up auth state listener');
+      unsubscribe();
+    };
   }, [router, pathname]);
 
   const handleAuth = useCallback(async () => {
+    console.log('[useAuth] Starting authentication');
     setIsLoading(true);
     setError(null);
 
@@ -40,13 +54,17 @@ export function useAuth() {
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
       
-      if (!token) return;
+      if (!token) {
+        console.log('[useAuth] No token found');
+        return;
+      }
 
       // Clean up URL immediately
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
       window.history.replaceState({}, document.title, url.pathname);
       
+      console.log('[useAuth] Exchanging token for Firebase token');
       // Exchange token for Firebase token
       const response = await fetch('/api/auth/xloudid', {
         method: 'POST',
@@ -64,12 +82,13 @@ export function useAuth() {
         throw new Error("No Firebase token received");
       }
 
+      console.log('[useAuth] Signing in with Firebase token');
       // Sign in with Firebase token
       await signInWithCustomToken(auth, firebaseToken);
       // The onAuthStateChanged listener will handle the redirection
     } catch (error) {
+      console.error('[useAuth] Authentication error:', error);
       setError(error as Error);
-      console.error('Authentication error:', error);
     } finally {
       setIsLoading(false);
     }
