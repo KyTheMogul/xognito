@@ -626,11 +626,16 @@ export default function Dashboard() {
   // Add function declarations
   const handleNewChat = async () => {
     try {
-      const newConversation = await createConversation();
+      if (!user?.uid) {
+        console.error('[Dashboard] No user ID available for creating conversation');
+        return;
+      }
+      console.log('[Dashboard] Creating new conversation for user:', user.uid);
+      const newConversation = await createConversation(user.uid);
       setActiveConversationId(newConversation.id);
       setMessages([]);
     } catch (error) {
-      console.error('Error creating new chat:', error);
+      console.error('[Dashboard] Error creating new chat:', error);
       setError('Failed to create new chat');
     }
   };
@@ -664,11 +669,11 @@ export default function Dashboard() {
       setUploads([]);
       
       // Add message to conversation
-      if (activeConversationId) {
-        await addMessage(activeConversationId, userMessage);
+      if (activeConversationId && user?.uid) {
+        await addMessage(activeConversationId, userMessage, user.uid);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('[Dashboard] Error sending message:', error);
       setError('Failed to send message');
     }
   };
@@ -809,6 +814,208 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error archiving account:', error);
       setError('Failed to archive account');
+    }
+  };
+
+  const handlePlanChange = async (newPlan: 'Pro' | 'Pro-Plus') => {
+    if (!user?.uid) {
+      console.error('[Dashboard] No user ID available for plan change');
+      return;
+    }
+    try {
+      setIsChangingPlan(true);
+      const userRef = doc(db, 'users', user.uid, 'billing', 'subscription');
+      await updateDoc(userRef, {
+        plan: newPlan,
+        updatedAt: serverTimestamp()
+      });
+      setUserSubscription(prev => prev ? { ...prev, plan: newPlan } : null);
+      setSuccess('Plan updated successfully');
+    } catch (error) {
+      console.error('[Dashboard] Error changing plan:', error);
+      setError('Failed to change plan');
+    } finally {
+      setIsChangingPlan(false);
+    }
+  };
+
+  const handleMemoryDelete = async (memoryId: string) => {
+    if (!user?.uid) {
+      console.error('[Dashboard] No user ID available for memory deletion');
+      return;
+    }
+    try {
+      const memoryRef = doc(db, 'users', user.uid, 'memories', memoryId);
+      await deleteDoc(memoryRef);
+      setActiveMemories(prev => prev.filter(m => m.id !== memoryId));
+    } catch (error) {
+      console.error('[Dashboard] Error deleting memory:', error);
+      setError('Failed to delete memory');
+    }
+  };
+
+  const handleXloudIDSearch = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      setIsSearching(true);
+      const usersRef = collection(db, 'users');
+      const q = query(
+        usersRef,
+        where('xloudId', '>=', searchTerm),
+        where('xloudId', '<=', searchTerm + '\uf8ff'),
+        limit(5)
+      );
+      const snapshot = await getDocs(q);
+      const results = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      })) as Array<{
+        uid: string;
+        email: string;
+        displayName: string;
+        photoURL: string;
+        xloudId: string;
+      }>;
+      setSearchResults(results);
+    } catch (error) {
+      console.error('[Dashboard] Error searching XloudID:', error);
+      setError('Failed to search users');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleJoinGroup = async () => {
+    if (!user?.uid || !groupCode.trim()) {
+      setError('Please enter a valid group code');
+      return;
+    }
+    try {
+      const groupRef = doc(db, 'groups', groupCode);
+      const groupDoc = await getDoc(groupRef);
+      
+      if (!groupDoc.exists()) {
+        setError('Group not found');
+        return;
+      }
+
+      const groupData = groupDoc.data();
+      await updateDoc(groupRef, {
+        members: arrayUnion(user.uid)
+      });
+
+      const userGroupRef = doc(db, 'users', user.uid, 'groups', groupCode);
+      await setDoc(userGroupRef, {
+        joinedAt: serverTimestamp(),
+        role: 'member'
+      });
+
+      setUserGroups(prev => [...prev, {
+        id: groupCode,
+        name: groupData.name || 'Unnamed Group',
+        code: groupCode,
+        hostXloudID: groupData.hostXloudID || '',
+        description: groupData.description
+      }]);
+
+      setGroupCode('');
+      setShowGroupModal(false);
+      setSuccess('Successfully joined group');
+    } catch (error) {
+      console.error('[Dashboard] Error joining group:', error);
+      setError('Failed to join group');
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!user?.uid || !groupName.trim()) {
+      setError('Please enter a group name');
+      return;
+    }
+    try {
+      const groupCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const groupRef = doc(db, 'groups', groupCode);
+      
+      await setDoc(groupRef, {
+        name: groupName,
+        description: groupDescription,
+        hostXloudID: user.uid,
+        createdAt: serverTimestamp(),
+        members: [user.uid]
+      });
+
+      const userGroupRef = doc(db, 'users', user.uid, 'groups', groupCode);
+      await setDoc(userGroupRef, {
+        joinedAt: serverTimestamp(),
+        role: 'host'
+      });
+
+      setUserGroups(prev => [...prev, {
+        id: groupCode,
+        name: groupName,
+        code: groupCode,
+        hostXloudID: user.uid,
+        description: groupDescription
+      }]);
+
+      setGroupName('');
+      setGroupDescription('');
+      setShowGroupModal(false);
+      setSuccess('Group created successfully');
+    } catch (error) {
+      console.error('[Dashboard] Error creating group:', error);
+      setError('Failed to create group');
+    }
+  };
+
+  const handleSendGroupMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupInput.trim() || !activeGroupId || !user?.uid) return;
+
+    try {
+      const messageRef = collection(db, 'groups', activeGroupId, 'messages');
+      await addDoc(messageRef, {
+        senderId: user.uid,
+        senderName: user.displayName || user.email,
+        senderPhoto: user.photoURL || USER_PROFILE,
+        text: groupInput.trim(),
+        timestamp: serverTimestamp(),
+        isAI: false
+      });
+
+      setGroupInput('');
+    } catch (error) {
+      console.error('[Dashboard] Error sending group message:', error);
+      setError('Failed to send message');
+    }
+  };
+
+  const handleCroppedImage = async () => {
+    if (!cropper || !user?.uid) return;
+
+    try {
+      const canvas = cropper.getCroppedCanvas();
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+        }, 'image/jpeg');
+      });
+
+      const file = new File([blob], 'profile.jpg', { type: 'image/jpeg' });
+      const storageRef = ref(storage, `profile_photos/${user.uid}`);
+      await uploadBytes(storageRef, file);
+      const photoURL = await getDownloadURL(storageRef);
+
+      await updateProfile(user, { photoURL });
+      setShowCropper(false);
+      setImageToCrop(null);
+      setSuccess('Profile photo updated successfully');
+    } catch (error) {
+      console.error('[Dashboard] Error updating profile photo:', error);
+      setError('Failed to update profile photo');
     }
   };
 
