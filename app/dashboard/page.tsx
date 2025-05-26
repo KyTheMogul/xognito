@@ -989,27 +989,76 @@ Guidelines:
 6. If you're not sure about something, say so
 7. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
 8. When referring to the user, use their first name (${getFirstName(user?.displayName)}) if appropriate
+9. ALWAYS respond with properly formatted text, not JSON or raw data
+10. For recipes, format them clearly with:
+    - Title
+    - Ingredients list
+    - Step-by-step instructions
+    - Any additional notes or tips
 
 ${memoryContext}`
           },
           { role: 'user', content: input }
         ];
 
-        console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
+        let aiResponse = '';
+        let isGeneratingImage = false;
+        let isGeneratingPDF = false;
+
         try {
-          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-            console.log("[Dashboard] Received chunk:", chunk);
-            aiResponse += chunk;
+          await fetchDeepSeekResponseStream(messagesForAI, (chunk: string) => {
+            // Check if the chunk is JSON data
+            if (chunk.startsWith('data: ')) {
+              try {
+                const jsonData = JSON.parse(chunk.slice(6));
+                if (jsonData.choices && jsonData.choices[0].delta.content) {
+                  aiResponse += jsonData.choices[0].delta.content;
+                }
+              } catch (e) {
+                // If it's not valid JSON, treat it as regular text
+                aiResponse += chunk;
+              }
+            } else {
+              aiResponse += chunk;
+            }
+
+            // Check for image generation request
+            if (aiResponse.toLowerCase().includes('generate an image') || 
+                aiResponse.toLowerCase().includes('create an image') ||
+                aiResponse.toLowerCase().includes('draw')) {
+              isGeneratingImage = true;
+            }
+
+            // Check for PDF generation request
+            if (aiResponse.toLowerCase().includes('generate a pdf') || 
+                aiResponse.toLowerCase().includes('create a pdf') ||
+                aiResponse.toLowerCase().includes('make a pdf')) {
+              isGeneratingPDF = true;
+            }
+
             // Update the AI message in Firestore with the current response
             const updatedAiMessage: Omit<Message, 'timestamp'> = {
               sender: 'ai',
               text: aiResponse,
               thinking: false
             };
-            updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage)
-              .catch(error => {
-                console.error("[Dashboard] Error updating AI message:", error);
-              });
+            
+            if (currentConversationId && aiMessageId) {
+              const aiMessageRef = doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId);
+              updateDoc(aiMessageRef, updatedAiMessage)
+                .catch(error => {
+                  console.error("[Dashboard] Error updating AI message:", error);
+                });
+            }
+
+            setMessages(prev => {
+              const newMessages = [...prev];
+              const lastMessage = newMessages[newMessages.length - 1];
+              if (lastMessage && lastMessage.sender === 'ai') {
+                lastMessage.text = aiResponse;
+              }
+              return newMessages;
+            });
           });
           console.log("[Dashboard] Stream complete, final response:", aiResponse);
 
