@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -43,7 +43,15 @@ const logError = (context: string, error: any, additionalInfo?: any) => {
   });
 };
 
-export default function Dashboard() {
+// Loading component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+  </div>
+);
+
+// Main dashboard content
+const DashboardContent = () => {
   const { isAuthenticated, user } = useAuth();
   const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
@@ -171,4 +179,13 @@ export default function Dashboard() {
   }
 
   // ... rest of the component code ...
+}
+
+// Main dashboard component with Suspense
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <DashboardContent />
+    </Suspense>
+  );
 } 
