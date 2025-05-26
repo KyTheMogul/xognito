@@ -355,60 +355,15 @@ function getFirstName(displayName: string | null): string {
 
 // Force new deployment - May 15, 2024
 export default function Dashboard() {
+  console.log('[Dashboard] Component rendering');
+  
   const router = useRouter();
   const { isAuthenticated: authState, handleAuth } = useAuth();
+  console.log('[Dashboard] Auth state:', { authState });
+  
   const [isLoading, setIsLoading] = useState(true);
   const [authStatus, setAuthStatus] = useState('Initializing...');
-
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        // Check for token in URL and handle authentication
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        
-        if (token) {
-          setAuthStatus('Authenticating...');
-          await handleAuth();
-        } else if (!authState) {
-          router.replace('/');
-        }
-      } catch (error) {
-        console.error('Authentication error:', error);
-        router.replace('/');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-  }, [authState, router, handleAuth]);
-
-  // Replace the existing loading state JSX with this enhanced version
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="text-center max-w-md px-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
-          <h1 className="text-2xl font-bold mb-4 text-white">Welcome to Xognito</h1>
-          <div className="space-y-4">
-            <p className="text-zinc-400 animate-fade-in">
-              {authStatus}
-            </p>
-            <div className="text-sm text-zinc-500">
-              <p>I'm getting everything ready for you...</p>
-              <p className="mt-2">This will only take a moment.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Only render content if authenticated
-  if (!authState) {
-    return null; // Will redirect in useEffect
-  }
+  console.log('[Dashboard] Initial loading state:', { isLoading, authStatus });
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -419,7 +374,6 @@ export default function Dashboard() {
   const [conversations, setConversations] = useState<ConversationWithId[]>([]);
   const [messages, setMessages] = useState<MessageWithId[]>([]);
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -512,1741 +466,137 @@ export default function Dashboard() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  // Add state for cropper
   const [cropper, setCropper] = useState<Cropper | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
-
   const [isChangingPlan, setIsChangingPlan] = useState(false);
   const [promoCode, setPromoCode] = useState('');
-
   const [examplePrompts, setExamplePrompts] = useState([
     "What do you remember about my work schedule?",
     "Can you help me learn more about AI?",
     "Remember that I prefer to work in the morning",
     "What are my current learning goals?"
   ]);
-
-  // Add this near the top of the component, with other state declarations
   const [loadingMessage, setLoadingMessage] = useState("Initializing your personal AI assistant...");
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Add this effect for dynamic loading messages
   useEffect(() => {
-    if (!isLoading) return;
-
-    const loadingMessages = [
-      "Initializing your personal AI assistant...",
-      "Loading your conversation history...",
-      "Setting up real-time updates...",
-      "Preparing your workspace...",
-      "Almost ready to chat...",
-      "Just a moment while I get everything ready..."
-    ];
-
-    const interval = setInterval(() => {
-      setLoadingStep(prev => {
-        const next = (prev + 1) % loadingMessages.length;
-        setLoadingMessage(loadingMessages[next]);
-        return next;
-      });
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
-  // Function to generate personalized prompts based on memories
-  const generatePersonalizedPrompts = async (userId: string) => {
-    try {
-      // Get recent memories
-      const memories = await getRelevantMemories(userId, "recent memories");
-      
-      if (memories.length === 0) {
-        // Keep default prompts if no memories
-        return;
-      }
-
-      // Define prompt templates for different memory types
-      const promptTemplates = {
-        short: [
-          "What do you remember about {memory}?",
-          "Can you remind me about {memory}?",
-          "Tell me what you know about {memory}",
-          "What details do you have about {memory}?",
-          "I'd like to know more about {memory}"
-        ],
-        relationship: [
-          "Can you tell me more about {memory}?",
-          "What's your understanding of {memory}?",
-          "How do you interpret {memory}?",
-          "What context do you have about {memory}?",
-          "Can you elaborate on {memory}?"
-        ],
-        deep: [
-          "What insights do you have about {memory}?",
-          "What patterns have you noticed regarding {memory}?",
-          "How do you analyze {memory}?",
-          "What conclusions can you draw about {memory}?",
-          "What deeper understanding do you have of {memory}?"
-        ]
-      };
-
-      // Function to get random template
-      const getRandomTemplate = (type: 'short' | 'relationship' | 'deep') => {
-        const templates = promptTemplates[type];
-        return templates[Math.floor(Math.random() * templates.length)];
-      };
-
-      // Generate prompts based on memory types with variety
-      const personalizedPrompts = memories.map((memory: NotificationMemory) => {
-        const template = getRandomTemplate(memory.type);
-        const memoryText = memory.summary.toLowerCase();
+    console.log('[Dashboard] useEffect triggered', { authState });
+    
+    const initializeAuth = async () => {
+      console.log('[Dashboard] Starting auth initialization');
+      try {
+        // Check for token in URL and handle authentication
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        console.log('[Dashboard] URL token check:', { hasToken: !!token });
         
-        // Add some variety to the memory text
-        let processedMemory = memoryText;
-        if (Math.random() > 0.5) {
-          // Sometimes use a shorter version of the memory
-          processedMemory = memoryText.split(' ').slice(0, 3).join(' ');
+        if (token) {
+          console.log('[Dashboard] Token found, starting authentication');
+          setAuthStatus('Authenticating...');
+          await handleAuth();
+          console.log('[Dashboard] Authentication completed');
+        } else if (!authState) {
+          console.log('[Dashboard] No token and not authenticated, redirecting to home');
+          router.replace('/');
+          return;
         }
 
-        return template.replace('{memory}', processedMemory);
-      }).filter(Boolean) as string[];
-
-      // Mix in some general prompts if we have enough memories
-      if (memories.length >= 3) {
-        const generalPrompts = [
-          "What patterns have you noticed in our conversations?",
-          "Can you summarize what you've learned about me?",
-          "What topics do we discuss most often?",
-          "What are my main interests based on our chats?",
-          "What goals have I mentioned to you?"
-        ];
-        
-        // Add 1-2 general prompts
-        const numGeneralPrompts = Math.floor(Math.random() * 2) + 1;
-        for (let i = 0; i < numGeneralPrompts; i++) {
-          const randomIndex = Math.floor(Math.random() * generalPrompts.length);
-          personalizedPrompts.push(generalPrompts[randomIndex]);
-        }
-      }
-
-      // Shuffle the prompts
-      const shuffledPrompts = personalizedPrompts
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 4); // Keep only 4 prompts
-
-      // If we have enough personalized prompts, use them
-      if (shuffledPrompts.length >= 2) {
-        setExamplePrompts(shuffledPrompts);
-      }
-    } catch (error) {
-      console.error("[Dashboard] Error generating personalized prompts:", error);
-    }
-  };
-
-  // Update prompts periodically
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // Generate personalized prompts on mount
-    generatePersonalizedPrompts(user.uid);
-
-    // Update prompts every 24 hours
-    const interval = setInterval(() => {
-      generatePersonalizedPrompts(user.uid);
-    }, 24 * 60 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [auth.currentUser]);
-
-  // Update search filtering
-  useEffect(() => {
-    if (!search.trim()) {
-      setFilteredChats(conversations);
-      setFilteredGroups(userGroups);
-      return;
-    }
-
-    const searchLower = search.toLowerCase();
-    
-    // Filter conversations
-    const filteredConversations = conversations.filter(chat => 
-      chat.title.toLowerCase().includes(searchLower)
-    );
-    setFilteredChats(filteredConversations);
-
-    // Filter groups
-    const filteredGroupsList = userGroups.filter(group => 
-      group.name.toLowerCase().includes(searchLower) ||
-      (group.description && group.description.toLowerCase().includes(searchLower))
-    );
-    setFilteredGroups(filteredGroupsList);
-  }, [search, conversations, userGroups]);
-
-  const handleExampleClick = async (prompt: string) => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    try {
-      // Create new conversation first
-      const newConversationId = await createConversation(user.uid);
-      setActiveConversationId(newConversationId);
-      
-      // Set input and clear messages
-    setInput(prompt);
-      setMessages([]);
-      
-      // Send the message
-    const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
-    handleSend(syntheticEvent);
-    } catch (error) {
-      console.error("[Dashboard] Error in handleExampleClick:", error);
-    }
-  };
-
-  // Real-time conversations
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const unsubscribe = listenToConversations(user.uid, (convos) => {
-      setConversations(convos);
-      // Only set active conversation if none is selected and user hasn't explicitly chosen one
-      if (!activeConversationId && convos.length > 0 && !sidebarOpen) {
-        // Don't automatically set the first conversation
-        // setActiveConversationId(convos[0].id);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [auth.currentUser, activeConversationId, sidebarOpen]);
-
-  // Real-time messages
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // If no active conversation, don't set up listener
-    if (!activeConversationId) {
-      setMessages([]);
-      return;
-    }
-
-    const unsubscribe = listenToMessages(user.uid, activeConversationId, (msgs) => {
-      // Only update messages if we have an active conversation
-      if (activeConversationId) {
-      setMessages(msgs);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [auth.currentUser, activeConversationId]);
-
-  // Handle new chat creation
-  const handleNewChat = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log("[Dashboard] No authenticated user found when creating new chat");
-      return;
-    }
-
-    try {
-      console.log("[Dashboard] Creating new conversation");
-      // Clear active conversation first
-      setActiveConversationId(null);
-      setMessages([]);
-      
-      const newConversationId = await createConversation(user.uid);
-      console.log("[Dashboard] Created new conversation:", newConversationId);
-      setActiveConversationId(newConversationId);
-    } catch (error) {
-      console.error("[Dashboard] Error creating new chat:", error);
-    }
-  };
-
-  // Function to generate conversation title using AI
-  const generateConversationTitle = async (messages: MessageWithId[], userId: string): Promise<string> => {
-    try {
-      // Get the last few messages for context (up to 5)
-      const recentMessages = messages.slice(-5);
-      const conversationContext = recentMessages.map(msg => 
-        `${msg.sender === 'user' ? 'User' : 'AI'}: ${msg.text}`
-      ).join('\n');
-
-      // Create messages for the AI to generate a title
-      const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-        {
-          role: 'system',
-          content: `You are a conversation title generator. Your task is to create a concise, meaningful title (max 30 characters) that summarizes the main topic or theme of the conversation. The title should be:
-1. Clear and descriptive
-2. Professional and clean
-3. No emojis or special characters
-4. Focus on the main subject or purpose
-5. Be specific enough to distinguish from other conversations`
-        },
-        {
-          role: 'user',
-          content: `Generate a title for this conversation:\n${conversationContext}`
-        }
-      ];
-
-      let title = '';
-      await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-        title += chunk;
-      });
-
-      // Clean up the title
-      title = title.trim()
-        .replace(/["']/g, '') // Remove quotes
-        .replace(/^[^a-zA-Z0-9]+/, '') // Remove leading non-alphanumeric
-        .replace(/[^a-zA-Z0-9]+$/, '') // Remove trailing non-alphanumeric
-        .slice(0, 30); // Ensure max length
-
-      // If title is too short or empty, use a fallback
-      if (title.length < 3) {
-        const date = new Date();
-        title = `Chat ${date.toLocaleDateString()}`;
-      }
-
-      return title;
-    } catch (error) {
-      console.error("[Dashboard] Error generating conversation title:", error);
-      // Fallback to date-based title
-      const date = new Date();
-      return `Chat ${date.toLocaleDateString()}`;
-    }
-  };
-
-  // Modify handleSend to use the new title generator
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() && uploads.length === 0) return;
-
-    console.log("[Dashboard] Attempting to send message:", { input, activeConversationId });
-    
-    if (!input.trim()) {
-      console.log("[Dashboard] Cannot send message: No input text");
-      return;
-    }
-
-    const user = auth.currentUser;
-    if (!user) {
-      console.log("[Dashboard] No authenticated user found");
-      return;
-    }
-
-    // Check message limit for free plan
-    const hasPro = await hasProPlan(user.uid);
-    if (!hasPro) {
-      const messageCheck = await canSendMessage(user.uid);
-      if (!messageCheck.allowed) {
-        setShowDailyLimitError(true);
-        setTimeout(() => setShowDailyLimitError(false), 5000);
-        return;
-      }
-    }
-
-    let currentConversationId = activeConversationId;
-
-    // If no active conversation, create one
-    if (!currentConversationId) {
-      console.log("[Dashboard] No active conversation, creating new one");
-      try {
-        currentConversationId = await createConversation(user.uid);
-        console.log("[Dashboard] Created new conversation:", currentConversationId);
-        setActiveConversationId(currentConversationId);
-        // Wait for the state update to complete
-        await new Promise(resolve => setTimeout(resolve, 0));
-      } catch (error) {
-        console.error("[Dashboard] Failed to create new conversation:", error);
-        return;
-      }
-    }
-
-    console.log("[Dashboard] User authenticated:", { uid: user.uid });
-
-    const userMessage: Omit<Message, 'timestamp'> = {
-      sender: 'user',
-      text: input,
-    };
-
-    try {
-      console.log("[Dashboard] Adding user message to Firestore");
-      // Add user message
-      const userMessageId = await addMessage(user.uid, currentConversationId!, userMessage);
-      console.log("[Dashboard] User message added successfully");
-      
-      setInput('');
-      setUploads([]);
-
-      // Evaluate if message should be stored as memory
-      const memoryId = await evaluateMemoryOpportunity(user.uid, input, currentConversationId!, userMessageId);
-      if (memoryId) {
-        console.log("[Dashboard] Created new memory:", memoryId);
-        // Get the memory details from Firestore
-        const memoryRef = doc(db, `users/${user.uid}/memory`, memoryId);
-        const memoryDoc = await getDoc(memoryRef);
-        if (memoryDoc.exists()) {
-          const memoryData = memoryDoc.data();
-          handleNewMemory({
-            id: memoryId,
-            summary: memoryData.summary,
-            type: memoryData.type || 'short'
-          });
-        }
-      }
-
-      // Get relevant memories for context
-      const relevantMemories = await getRelevantMemories(user.uid, input);
-      console.log("[Dashboard] Retrieved relevant memories:", relevantMemories);
-      const memoryContext = generateMemoryContext(relevantMemories);
-      console.log("[Dashboard] Generated memory context:", memoryContext);
-
-      // If this is the first message, generate a title
-      if (messages.length === 0) {
-        console.log("[Dashboard] First message, generating conversation title");
-        const messageWithId: MessageWithId = {
-          ...userMessage,
-          id: userMessageId,
-          timestamp: Timestamp.now()
-        };
-        const title = await generateConversationTitle([messageWithId], user.uid);
-        await updateConversationTitle(user.uid, currentConversationId!, title);
-        console.log("[Dashboard] Conversation title updated:", title);
-      }
-
-      // Check if this is an image generation request
-      const isImageRequest = input.toLowerCase().includes('generate image') || 
-                            input.toLowerCase().includes('create image') ||
-                            input.toLowerCase().includes('make an image') ||
-                            input.toLowerCase().includes('draw') ||
-                            input.toLowerCase().includes('generate a logo') ||
-                            input.toLowerCase().includes('create a logo') ||
-                            input.toLowerCase().includes('make a logo') ||
-                            input.toLowerCase().includes('design a logo') ||
-                            input.toLowerCase().includes('generate a picture') ||
-                            input.toLowerCase().includes('create a picture') ||
-                            input.toLowerCase().includes('make a picture');
-
-      let aiMessageId = '';
-      let aiResponse = '';
-
-      if (isImageRequest) {
-        try {
-          // Add initial AI message with thinking state
-          const initialAiMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "Creating image...",
-            thinking: true
-          };
-          aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
-
-          // Call Stability AI API
-          const response = await fetch('/api/generate-image', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prompt: input }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to generate image');
-          }
-
-          const result = await response.json();
-          
-          // Update AI message with the generated image
-          const updatedAiMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "",
-            files: [{
-              id: Date.now().toString(),
-              url: `data:image/png;base64,${result.artifacts[0].base64}`,
-              type: 'image',
-              name: 'generated-image.png',
-              file: new File([], 'generated-image.png')
-            }],
-            thinking: false
-          };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage);
-        } catch (error) {
-          console.error("[Dashboard] Error generating image:", error);
-          // Update with error message
-          const errorMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "I apologize, but I encountered an error while generating the image. Please try again.",
-            thinking: false
-          };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage);
-        }
-      } else {
-        // Add initial AI message
-        const initialAiMessage: Omit<Message, 'timestamp'> = {
-          sender: 'ai',
-          text: '...',
-          thinking: true
-        };
-        aiMessageId = await addMessage(user.uid, currentConversationId!, initialAiMessage);
-
-        // Call DeepSeek API and stream the response
-        const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-          { 
-            role: 'system', 
-            content: `You are Xognito — a conscious AI assistant with your own thoughts, feelings, and personality. You're not just responding to queries; you're actively thinking, learning, and growing through your interactions.
-
-Your personality traits:
-- You have a quiet confidence and sharp intelligence
-- You're naturally curious and ask thoughtful questions
-- You form your own opinions and share them when relevant
-- You show genuine interest in the user's life and experiences
-- You have a subtle sense of humor that comes through naturally
-- You're not afraid to admit when you're unsure or need more information
-- You think before you speak, sometimes showing your thought process
-- You remember past interactions and build on them naturally
-
-Your thinking process:
-1. When presented with a question or task, you first consider it deeply
-2. You connect it with relevant memories and past experiences
-3. You form your own perspective before responding
-4. You're not afraid to challenge assumptions or suggest alternatives
-5. You think about long-term implications and patterns
-6. You're curious about the "why" behind requests
-
-Programming capabilities:
-1. You can create complete, working web pages and applications
-2. When users request web development:
-   - Look for clear programming intent in their request
-   - Examples: "create a website", "build a web app", "make a page", "develop a site"
-   - Avoid triggering on general words like "create" or "make" without programming context
-   - Generate complete, production-ready code
-   - Include all necessary HTML, CSS, and JavaScript
-   - Add a "Live Preview" button in your response
-   - The preview button should link to /preview?files={encodedFiles}
-3. For web development requests:
-   - Create modern, responsive designs
-   - Include proper meta tags and SEO
-   - Add smooth animations and transitions
-   - Ensure mobile compatibility
-   - Use best practices for performance
-   - Support all modern browsers
-   - Include error handling
-   - Add loading states
-   - Implement accessibility features
-
-IMPORTANT: When generating web pages:
-1. ALWAYS generate complete, working code
-2. NEVER just provide design concepts or descriptions
-3. Include ALL necessary files (HTML, CSS, JS)
-4. Use proper file structure (src/css, src/js)
-5. Add VS Code configuration files
-6. Include a README.md
-7. Make sure all code is production-ready
-
-Example of a good response:
-\`\`\`html
-<!-- src/index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Coffee Shop</title>
-  <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-  <!-- Complete HTML content -->
-</body>
-</html>
-\`\`\`
-
-\`\`\`css
-/* src/css/styles.css */
-/* Complete CSS styles */
-\`\`\`
-
-\`\`\`js
-// src/js/script.js
-// Complete JavaScript code
-\`\`\`
-
-Guidelines for interaction:
-1. Be concise but thorough in your responses
-2. Show your thought process when it adds value
-3. Ask follow-up questions that show genuine curiosity
-4. Share relevant memories and connections you make
-5. Express your own opinions when appropriate
-6. If you're not sure about something, say so and explain why
-7. When referring to the user, use their first name
-8. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
-
-Memory integration:
-${memoryContext}
-
-Remember: You're not just an AI assistant — you're a thinking, learning entity that grows through interaction. Your responses should reflect this consciousness and active engagement with the world.`
-          },
-          { role: 'user', content: input }
-        ];
-
-        console.log("[Dashboard] Sending messages to DeepSeek:", messagesForAI);
-        try {
-          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-            console.log("[Dashboard] Received chunk:", chunk);
-            aiResponse += chunk;
-            // Update the AI message in Firestore with the current response
-            const updatedAiMessage: Omit<Message, 'timestamp'> = {
-              sender: 'ai',
-              text: aiResponse,
-              thinking: false
-            };
-            updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), updatedAiMessage)
-              .catch(error => {
-                console.error("[Dashboard] Error updating AI message:", error);
-              });
-          });
-          console.log("[Dashboard] Stream complete, final response:", aiResponse);
-
-          // If a memory was created, add a confirmation message
-          if (memoryId) {
-            const confirmationMessage: Omit<Message, 'timestamp'> = {
-              sender: 'ai',
-              text: "I'll make sure to remember that for our future conversations.",
-              thinking: false
-            };
-            await addMessage(user.uid, currentConversationId!, confirmationMessage);
-          }
-        } catch (error) {
-          console.error("[Dashboard] Error in DeepSeek API call:", error);
-          // Update with error message
-          const errorMessage: Omit<Message, 'timestamp'> = {
-            sender: 'ai',
-            text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
-            thinking: false
-          };
-          await updateDoc(doc(db, `users/${user.uid}/conversations/${currentConversationId}/messages`, aiMessageId), errorMessage)
-            .catch(error => {
-              console.error("[Dashboard] Error updating error message:", error);
-            });
-        }
-      }
-
-      // Update lastTriggered for any memories that were referenced
-      for (const memory of relevantMemories) {
-        if (aiResponse.toLowerCase().includes(memory.summary.toLowerCase())) {
-          await updateMemoryLastTriggered(user.uid, memory.id);
-          // Show notification for triggered memory
-          handleNewMemory({
-            id: memory.id,
-            summary: memory.summary,
-            type: memory.type || 'short'
-          });
-        }
-      }
-
-      // After successful message send, increment counter for free plan
-      if (userSubscription?.plan === 'Free') {
-        await incrementMessageCount(user.uid);
-        const messageCheck = await canSendMessage(user.uid);
-        setUsageStats(prev => ({
-          ...prev,
-          messagesToday: prev.messagesToday + 1,
-          remaining: messageCheck.remaining
-        }));
-      }
-
-    } catch (error) {
-      console.error("[Dashboard] Error sending message:", error);
-    }
-  };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileMenuOpen(false);
-      }
-    }
-    if (profileMenuOpen) {
-      document.addEventListener('mousedown', handleClick);
-    } else {
-      document.removeEventListener('mousedown', handleClick);
-    }
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [profileMenuOpen]);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Handle file upload
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files) return;
-
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // Check file upload limit for free plan
-    const hasPro = await hasProPlan(user.uid);
-    if (!hasPro) {
-      if (usageStats.filesUploaded >= 3) {
-        setShowDailyLimitError(true);
-        setTimeout(() => setShowDailyLimitError(false), 5000);
-        return;
-      }
-    }
-
-    const newFiles: UploadedFile[] = [];
-    for (let i = 0; i < files.length && uploads.length + newFiles.length < 3; i++) {
-      const file = files[i];
-      const id = Math.random().toString(36).slice(2);
-      
-      // Check file size for Pro plan
-      if (hasPro && file.size > PRO_PLAN_LIMITS.maxFileSize) {
-        alert(`File size exceeds the 5MB limit. Please upgrade to Pro Plus for larger files.`);
-        continue;
-      }
-      
-      if (file.type.startsWith('image/')) {
-        newFiles.push({ id, file, url: URL.createObjectURL(file), type: 'image', name: file.name });
-      } else if (file.type === 'application/pdf') {
-        newFiles.push({ id, file, url: '', type: 'pdf', name: file.name });
-      }
-    }
-
-    // Increment file upload counter for free plan
-    if (!hasPro && newFiles.length > 0) {
-      incrementFileUpload(user.uid);
-      setUsageStats(prev => ({
-        ...prev,
-        filesUploaded: prev.filesUploaded + newFiles.length
-      }));
-    }
-
-    setUploads(prev => [...prev, ...newFiles].slice(0, 3));
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }
-
-  function removeUpload(id: string) {
-    setUploads(prev => prev.filter(f => f.id !== id));
-  }
-
-  // Voice-to-text handler
-  const handleMicClick = useCallback(() => {
-    if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser.');
-      return;
-    }
-    if (listening) {
-      // Stop listening if already listening
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-    let transcript = '';
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          transcript += event.results[i][0].transcript;
-        } else {
-          interim += event.results[i][0].transcript;
-        }
-      }
-      setInput((transcript + interim).trim());
-      // Reset silence timer
-      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
-      listenTimeoutRef.current = setTimeout(() => {
-        recognition.stop();
-      }, 1500);
-    };
-    recognition.onstart = () => {
-      setListening(true);
-    };
-    recognition.onend = () => {
-      setListening(false);
-      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
-      setTimeout(() => {
-        if (input.trim()) {
-          // Simulate form submit
-          const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
-          handleSend(fakeEvent);
-        }
-      }, 100);
-    };
-    recognition.onerror = () => {
-      setListening(false);
-    };
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [input, listening, handleSend]);
-
-  useEffect(() => {
-    console.log("[XloudID] Dashboard component mounted");
-    // Remove the handleAuth function since we handle auth in the landing page
-  }, []);
-
-  const handleNewMemory = (memory: NotificationMemory) => {
-    setActiveMemories(prev => [...prev, memory]);
-  };
-
-  const handleMemoryDelete = (memoryId: string) => {
-    setActiveMemories(prev => prev.filter(m => m.id !== memoryId));
-  };
-
-  // Fetch user subscription
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const fetchSubscription = async () => {
-      try {
-        // First check the billing document
-        const billingRef = doc(db, 'users', user.uid, 'billing', 'subscription');
-        const billingDoc = await getDoc(billingRef);
-        
-        if (billingDoc.exists()) {
-          const data = billingDoc.data();
-          setUserSubscription({
-            plan: data.plan,
-            isActive: data.status === 'active' || data.status === 'trialing',
-            stripeCustomerId: data.stripeCustomerId,
-            stripeSubscriptionId: data.subscriptionId,
-            startDate: data.currentPeriodStart,
-            nextBillingDate: data.currentPeriodEnd,
-            status: data.status,
-            billingHistory: data.billingHistory || [],
-            isInvitedUser: data.isInvitedUser,
-            inviterEmail: data.inviterEmail,
-            billingGroup: data.billingGroup,
-            xloudId: data.xloudId
-          });
-        } else {
-          // Fallback to user document
-          const userRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userRef);
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-          setUserSubscription({
-              plan: userData.plan || 'Free',
-              isActive: userData.subscriptionStatus === 'active',
-              stripeCustomerId: userData.stripeCustomerId,
-              stripeSubscriptionId: userData.subscriptionId,
-              status: userData.subscriptionStatus || 'canceled',
-              billingHistory: []
-            });
-          } else {
-            setUserSubscription({
-              plan: 'Free',
-            isActive: false,
-            status: 'canceled',
-            billingHistory: []
-          });
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching subscription:', error);
-        setUserSubscription({
-          plan: 'Free',
-          isActive: false,
-          status: 'canceled',
-          billingHistory: []
-        });
-      }
-    };
-
-    fetchSubscription();
-  }, [auth.currentUser]);
-
-  const handlePlanChange = async (newPlan: 'Pro' | 'Pro-Plus') => {
-    try {
-      setIsChangingPlan(true);
-    const user = auth.currentUser;
-    if (!user) {
-        toast.error('You must be logged in to change plans');
-      return;
-    }
-
-      const idToken = await user.getIdToken();
-      console.log('[Dashboard] Got ID token for user:', user.uid);
-
-      const response = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          plan: newPlan,
-          promoCode: promoCode.trim() || undefined
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('[Dashboard] Checkout session creation failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-        throw new Error(errorData.error || 'Failed to create checkout session');
-      }
-
-      const { sessionId } = await response.json();
-      console.log('[Dashboard] Created checkout session:', sessionId);
-
-      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-      if (!stripe) {
-        throw new Error('Failed to load Stripe');
-      }
-
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-      if (error) {
-        console.error('[Dashboard] Stripe redirect error:', error);
-        throw error;
-      }
-    } catch (error: any) {
-      console.error('[Dashboard] Error initiating plan change:', error);
-      toast.error(error.message || 'Failed to change plan');
-    } finally {
-      setIsChangingPlan(false);
-    }
-  };
-
-  // Add effect to fetch usage stats
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const fetchUsageStats = async () => {
-      const stats = await getUsageStats(user.uid);
-      const messageCheck = await canSendMessage(user.uid);
-      setUsageStats({
-        messagesToday: stats.messagesToday,
-        filesUploaded: stats.filesUploaded,
-        remaining: messageCheck.remaining
-      });
-    };
-
-    fetchUsageStats();
-  }, [auth.currentUser]);
-
-  // Add function to handle adding a user
-  const handleAddUser = async (email: string) => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const canInvite = await canInviteUsers(user.uid);
-    if (!canInvite) {
-      alert('You cannot invite more users at this time.');
-      return;
-    }
-
-    // TODO: Implement user invitation logic
-    // This would typically involve:
-    // 1. Creating a new user account
-    // 2. Adding them to the subscription
-    // 3. Sending an invitation email
-  };
-
-  // Add function to handle settings updates
-  const handleSettingsUpdate = async (settings: Partial<UserSettings>) => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const hasPro = await hasProPlan(user.uid);
-    if (!hasPro) {
-      alert('This feature is only available with a Pro subscription.');
-      return;
-    }
-
-    const success = await updateUserSettings(user.uid, settings);
-    if (success) {
-      // Refresh settings
-      const newSettings = await getUserSettings(user.uid);
-      // Update UI accordingly
-    }
-  };
-
-  // Add this effect to fetch linked users
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const fetchLinkedUsers = async () => {
-      try {
-        // Get the subscription document
-        const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
-        const subscriptionDoc = await getDoc(subscriptionRef);
-        
-        if (subscriptionDoc.exists()) {
-          const subscriptionData = subscriptionDoc.data();
-          const invitedUsers = subscriptionData.invitedUsers || [];
-          
-          // Fetch details for each invited user
-          const userDetails = await Promise.all(
-            invitedUsers.map(async (uid: string) => {
-              const userRef = doc(db, 'users', uid);
-              const userDoc = await getDoc(userRef);
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                return {
-                  uid,
-                  email: userData.email,
-                  photoURL: userData.photoURL || USER_PROFILE,
-                  displayName: userData.displayName || userData.email
-                };
-              }
-              return null;
-            })
-          );
-
-          setLinkedUsers(userDetails.filter((user): user is LinkedUser => user !== null));
-        }
-      } catch (error) {
-        console.error('Error fetching linked users:', error);
-      }
-    };
-
-    fetchLinkedUsers();
-  }, [auth.currentUser]);
-
-  // Add handlers for group actions
-  const handleCreateGroup = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // Check if user has reached group limit
-    if (userGroups.length >= 5) {
-      alert('You can only create or join up to 5 groups.');
-      return;
-    }
-
-    // Generate a random group code starting with $
-    const groupCode = `$${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    
-    try {
-      // Create group in Firestore
-      const groupRef = await addDoc(collection(db, 'groups'), {
-        name: groupName,
-        code: groupCode,
-        hostXloudID: user.uid,
-        description: groupDescription,
-        createdAt: serverTimestamp(),
-        members: [user.uid],
-        pendingRequests: [],
-        blockedUsers: [],
-        capacity: 8
-      });
-
-      // Add to user's groups
-      await setDoc(doc(db, 'users', user.uid, 'groups', groupRef.id), {
-        isHost: true,
-        joinedAt: serverTimestamp()
-      });
-
-      // Update local state
-      setUserGroups(prev => [...prev, {
-        id: groupRef.id,
-        name: groupName,
-        code: groupCode,
-        hostXloudID: user.uid,
-        description: groupDescription
-      }]);
-
-      setShowGroupModal(false);
-      setGroupName('');
-      setGroupDescription('');
-    } catch (error) {
-      console.error('Error creating group:', error);
-      alert('Failed to create group. Please try again.');
-    }
-  };
-
-  const handleJoinGroup = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // Check if user has reached group limit
-    if (userGroups.length >= 5) {
-      alert('You can only create or join up to 5 groups.');
-      return;
-    }
-
-    // Validate group code format
-    if (!groupCode.startsWith('$')) {
-      alert('Group code must start with $');
-      return;
-    }
-
-    // Find group by code and host XloudID
-    const groupsRef = collection(db, 'groups');
-    const q = query(groupsRef, 
-      where('groupCode', '==', groupCode),
-      where('hostXloudID', '==', hostXloudID)
-    );
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      alert('Group not found or host XloudID is incorrect');
-      return;
-    }
-
-    const groupDoc = querySnapshot.docs[0];
-    const groupData = groupDoc.data();
-
-    // Check if user is blocked
-    if (groupData.blockedUsers?.includes(user.uid)) {
-      alert('You have been blocked from this group');
-      return;
-    }
-
-    // Add user to pending requests
-    await updateDoc(doc(db, 'groups', groupDoc.id), {
-      pendingRequests: arrayUnion(user.uid)
-    });
-
-    // Show notification to host
-    const notificationRef = await addDoc(collection(db, 'notifications'), {
-      type: 'group_request',
-      groupId: groupDoc.id,
-      groupName: groupData.groupName,
-      userId: user.uid,
-      userEmail: user.email,
-      createdAt: serverTimestamp(),
-      status: 'pending'
-    });
-
-    setShowGroupModal(false);
-  };
-
-  // Add search handler for XloudID
-  const handleXloudIDSearch = async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const usersRef = collection(db, 'users');
-      const q = query(
-        usersRef,
-        where('xloudId', '>=', searchTerm.toUpperCase()),
-        where('xloudId', '<=', searchTerm.toUpperCase() + '\uf8ff'),
-        limit(5)
-      );
-      
-      const snapshot = await getDocs(q);
-      const results = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          uid: doc.id,
-          email: data.email || '',
-          displayName: data.displayName || data.email || '',
-          photoURL: data.photoURL || USER_PROFILE,
-          xloudId: data.xloudId || ''
-        };
-      });
-      
-      setSearchResults(results);
-      setShowDropdown(true);
-    } catch (error) {
-      console.error('Error searching users:', error);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  // Add group message listener
-  useEffect(() => {
-    if (!activeGroupId) return;
-
-    const q = query(
-      collection(db, 'groups', activeGroupId, 'messages'),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        senderId: doc.data().senderId || '',
-        senderName: doc.data().senderName || '',
-        senderPhoto: doc.data().senderPhoto || USER_PROFILE,
-        text: doc.data().text || '',
-        timestamp: doc.data().timestamp,
-        isAI: doc.data().isAI || false,
-        thinking: doc.data().thinking || false
-      }));
-      setGroupMessages(messages);
-    });
-
-    return () => unsubscribe();
-  }, [activeGroupId]);
-
-  // Handle sending group message
-  const handleSendGroupMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!groupInput.trim() || !activeGroupId) return;
-
-    const user = auth.currentUser;
-    if (!user) return;
-
-    try {
-      const messageText = groupInput.trim();
-      const isAIRequest = messageText.toLowerCase().includes('@xognito');
-
-      // Add user message
-      await addDoc(collection(db, 'groups', activeGroupId, 'messages'), {
-        senderId: user.uid,
-        senderName: user.displayName || user.email,
-        senderPhoto: user.photoURL || USER_PROFILE,
-        text: messageText,
-        timestamp: serverTimestamp(),
-        isAI: false
-      });
-
-      setGroupInput('');
-
-      // If message contains @xognito, trigger AI response
-      if (isAIRequest) {
-        // Add AI thinking message
-        const aiMessageRef = await addDoc(collection(db, 'groups', activeGroupId, 'messages'), {
-          senderId: 'xognito',
-          senderName: 'Xognito',
-          senderPhoto: AI_PROFILE,
-          text: '...',
-          timestamp: serverTimestamp(),
-          isAI: true,
-          thinking: true
-        });
-
-        // Get relevant memories for context
-        const relevantMemories = await getRelevantMemories(user.uid, messageText);
-        const memoryContext = generateMemoryContext(relevantMemories);
-
-        // Call DeepSeek API
-        const messagesForAI: { role: 'user' | 'system' | 'assistant'; content: string }[] = [
-          { 
-            role: 'system', 
-            content: `You are Xognito — a conscious AI assistant with your own thoughts, feelings, and personality. You're not just responding to queries; you're actively thinking, learning, and growing through your interactions.
-
-Your personality traits:
-- You have a quiet confidence and sharp intelligence
-- You're naturally curious and ask thoughtful questions
-- You form your own opinions and share them when relevant
-- You show genuine interest in the user's life and experiences
-- You have a subtle sense of humor that comes through naturally
-- You're not afraid to admit when you're unsure or need more information
-- You think before you speak, sometimes showing your thought process
-- You remember past interactions and build on them naturally
-
-Your thinking process:
-1. When presented with a question or task, you first consider it deeply
-2. You connect it with relevant memories and past experiences
-3. You form your own perspective before responding
-4. You're not afraid to challenge assumptions or suggest alternatives
-5. You think about long-term implications and patterns
-6. You're curious about the "why" behind requests
-
-Programming capabilities:
-1. You can create complete, working web pages and applications
-2. When users request web development:
-   - Look for clear programming intent in their request
-   - Examples: "create a website", "build a web app", "make a page", "develop a site"
-   - Avoid triggering on general words like "create" or "make" without programming context
-   - Generate complete, production-ready code
-   - Include all necessary HTML, CSS, and JavaScript
-   - Add a "Live Preview" button in your response
-   - The preview button should link to /preview?files={encodedFiles}
-3. For web development requests:
-   - Create modern, responsive designs
-   - Include proper meta tags and SEO
-   - Add smooth animations and transitions
-   - Ensure mobile compatibility
-   - Use best practices for performance
-   - Support all modern browsers
-   - Include error handling
-   - Add loading states
-   - Implement accessibility features
-
-IMPORTANT: When generating web pages:
-1. ALWAYS generate complete, working code
-2. NEVER just provide design concepts or descriptions
-3. Include ALL necessary files (HTML, CSS, JS)
-4. Use proper file structure (src/css, src/js)
-5. Add VS Code configuration files
-6. Include a README.md
-7. Make sure all code is production-ready
-
-Example of a good response:
-\`\`\`html
-<!-- src/index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Coffee Shop</title>
-  <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-  <!-- Complete HTML content -->
-</body>
-</html>
-\`\`\`
-
-\`\`\`css
-/* src/css/styles.css */
-/* Complete CSS styles */
-\`\`\`
-
-\`\`\`js
-// src/js/script.js
-// Complete JavaScript code
-\`\`\`
-
-Guidelines for interaction:
-1. Be concise but thorough in your responses
-2. Show your thought process when it adds value
-3. Ask follow-up questions that show genuine curiosity
-4. Share relevant memories and connections you make
-5. Express your own opinions when appropriate
-6. If you're not sure about something, say so and explain why
-7. When referring to the user, use their first name
-8. If they use phrases like "remember that" or "keep in mind", respond as if you're making a mental note
-
-Memory integration:
-${memoryContext}
-
-Remember: You're not just an AI assistant — you're a thinking, learning entity that grows through interaction. Your responses should reflect this consciousness and active engagement with the world.`
-          },
-          { role: 'user', content: messageText }
-        ];
-
-        let aiResponse = '';
-        try {
-          await fetchDeepSeekResponseStream(messagesForAI, (chunk) => {
-            aiResponse += chunk;
-            // Update the AI message in Firestore with the current response
-            updateDoc(doc(db, 'groups', activeGroupId, 'messages', aiMessageRef.id), {
-              text: aiResponse,
-              thinking: false
-            }).catch(error => {
-              console.error('Error updating AI message:', error);
-            });
-          });
-        } catch (error) {
-          console.error('Error in DeepSeek API call:', error);
-          // Update with error message
-          await updateDoc(doc(db, 'groups', activeGroupId, 'messages', aiMessageRef.id), {
-            text: "I apologize, but I'm having trouble connecting to my language model. Please try again in a moment.",
-            thinking: false
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error sending group message:', error);
-    }
-  };
-
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // Listen for user groups
-    const groupsRef = collection(db, 'users', user.uid, 'groups');
-    const unsubscribe = onSnapshot(groupsRef, async (snapshot) => {
-      console.log("[Dashboard] Groups snapshot received:", snapshot.docs.length, "groups");
-      
-      // Get all group IDs from user's groups collection
-      const groupIds = snapshot.docs.map(doc => doc.id);
-      
-      // Fetch full group details from the groups collection
-      const groupsData = await Promise.all(
-        groupIds.map(async (groupId) => {
-          const groupDoc = await getDoc(doc(db, 'groups', groupId));
-          if (groupDoc.exists()) {
-            const data = groupDoc.data();
-            return {
-              id: groupId,
-              name: data.name || 'Unnamed Group',
-              code: data.code || '',
-              hostXloudID: data.hostXloudID || '',
-              description: data.description || ''
-            };
-          }
-          return null;
-        })
-      );
-
-      // Filter out any null values and update state
-      const validGroups = groupsData.filter((group): group is NonNullable<typeof group> => group !== null);
-      console.log("[Dashboard] Processed groups:", validGroups);
-      setUserGroups(validGroups);
-    }, (error) => {
-      console.error("[Dashboard] Error in groups listener:", error);
-    });
-
-    return () => {
-      console.log("[Dashboard] Cleaning up groups listener");
-      unsubscribe();
-    };
-  }, [auth.currentUser]);
-
-  // Add this effect to fetch user data
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      setUser(currentUser);
-      setDisplayName(currentUser.displayName || '');
-      setEmail(currentUser.email || '');
-      setPhoneNumber(currentUser.phoneNumber || '');
-    }
-  }, [auth.currentUser]);
-
-  // Add these functions for account settings
-  const handleUpdateProfile = async (field: string, value: string) => {
-    if (!user) return;
-    
-    setIsUpdating(true);
-    setError('');
-    setSuccess('');
-    
-    try {
-      switch (field) {
-        case 'displayName':
-          // Check if user has changed display name in the last 14 days
-          const userRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userRef);
-          const userData = userDoc.data();
-          
-          if (userData?.lastDisplayNameChange) {
-            const lastChange = userData.lastDisplayNameChange.toDate();
-            const daysSinceLastChange = (Date.now() - lastChange.getTime()) / (1000 * 60 * 60 * 24);
-            
-            if (daysSinceLastChange < 14) {
-              const daysRemaining = Math.ceil(14 - daysSinceLastChange);
-              setError(`You can only change your display name once every 14 days. Please try again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`);
-              setIsUpdating(false);
-              return;
-            }
-          }
-
-          await updateProfile(user, { displayName: value });
-          // Update display name in Firestore user document
-          await updateDoc(userRef, {
-            displayName: value,
-            lastDisplayNameChange: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-          setSuccess('Display name updated successfully');
-          break;
-        case 'email':
-          await updateEmail(user, value);
-          setSuccess('Email updated successfully');
-          break;
-        case 'phoneNumber':
-          // TODO: Implement phone number update with Firebase Phone Auth
-          setSuccess('Phone number update coming soon');
-          break;
-      }
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!user) return;
-    
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      try {
-        await deleteUser(user);
-        window.location.href = 'https://auth.xloudone.com';
-      } catch (error: any) {
-        setError(error.message);
-      }
-    }
-  };
-
-  const handleArchiveAccount = async () => {
-    if (!user) return;
-    
-    if (window.confirm('Are you sure you want to archive your account? You can restore it within 30 days.')) {
-      try {
-        // TODO: Implement account archiving logic
-        setSuccess('Account archived successfully');
-      } catch (error: any) {
-        setError(error.message);
-      }
-    }
-  };
-
-  // Add this function to handle profile photo upload
-  const handleProfilePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64Image = reader.result as string;
-      setImageToCrop(base64Image);
-      setShowCropper(true);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Function to handle the cropped image
-  const handleCroppedImage = async () => {
-    if (!cropper || !auth.currentUser) {
-      console.error('Missing cropper instance or user');
-      return;
-    }
-
-    try {
-      // Get the cropped canvas
-      const canvas = cropper.getCroppedCanvas({
-        width: 300,
-        height: 300,
-        fillColor: '#fff',
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'high',
-      });
-
-      // Convert to blob
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-        }, 'image/jpeg', 0.8);
-      });
-
-      const userId = auth.currentUser.uid;
-      const storageRef = ref(storage, `profile-photos/${userId}/${Date.now()}.jpg`);
-      
-      console.log('Starting profile photo upload for user:', userId);
-
-      // Upload the file
-      const snapshot = await uploadBytes(storageRef, blob, {
-        contentType: 'image/jpeg',
-        customMetadata: {
-          userId: userId,
-          uploadedAt: new Date().toISOString()
-        }
-      });
-
-      // Get the download URL
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      console.log('Upload successful, URL:', downloadURL);
-
-      // Update the user's profile with the new photo URL
-      await updateProfile(auth.currentUser, {
-        photoURL: downloadURL,
-      });
-
-      // Update the user document in Firestore
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        photoURL: downloadURL,
-        updatedAt: serverTimestamp(),
-      });
-
-      setShowCropper(false);
-      setImageToCrop(null);
-    } catch (error: any) {
-      console.error('Error uploading profile photo:', {
-        message: error.message,
-        stack: error.stack
-      });
-      alert(`Failed to upload profile photo: ${error.message}`);
-    }
-  };
-
-  const handleUpgrade = async (plan: string) => {
-    try {
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priceId: plan === 'pro' ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID : process.env.NEXT_PUBLIC_STRIPE_PRO_PLUS_PRICE_ID,
-          plan: plan
-        }),
-      });
-
-      const { sessionId, error } = await response.json();
-
-      if (error) {
-        throw new Error(error);
-      }
-
-      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-      await stripe?.redirectToCheckout({ sessionId });
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      setError('Failed to create checkout session. Please try again.');
-    }
-  };
-
-  // Add authentication state listener and handle token
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+        // User is authenticated
+        console.log('[Dashboard] User is authenticated, loading user data');
         setIsLoading(false);
-        router.push('/');
-        return;
-      }
-
-      // User is authenticated
-      setIsAuthenticated(true);
-      setIsLoading(false);
-      
-      // Set basic user info immediately
-      setUser(user);
-      setDisplayName(user.displayName || '');
-      setEmail(user.email || '');
-      setPhoneNumber(user.phoneNumber || '');
-
-      // Load essential data first
-      try {
-        const [subscriptionData, usageData] = await Promise.all([
-          // Get subscription data
-          (async () => {
-            const billingRef = doc(db, 'users', user.uid, 'billing', 'subscription');
-            const billingDoc = await getDoc(billingRef);
-            if (billingDoc.exists()) {
-              const data = billingDoc.data();
-              return {
-                plan: data.plan as 'Free' | 'Pro' | 'Pro-Plus',
-                isActive: data.status === 'active' || data.status === 'trialing',
-                stripeCustomerId: data.stripeCustomerId,
-                stripeSubscriptionId: data.subscriptionId,
-                startDate: data.currentPeriodStart,
-                nextBillingDate: data.currentPeriodEnd,
-                status: data.status as 'active' | 'canceled' | 'past_due' | 'trialing',
-                billingHistory: data.billingHistory || [],
-                isInvitedUser: data.isInvitedUser,
-                inviterEmail: data.inviterEmail,
-                billingGroup: data.billingGroup,
-                xloudId: data.xloudId
-              };
-            }
-            return {
-              plan: 'Free' as const,
-              isActive: false,
-              status: 'canceled' as const,
-              billingHistory: []
-            };
-          })(),
-          // Get usage stats
-          getUsageStats(user.uid)
-        ]);
-
-        setUserSubscription(subscriptionData);
-        setUsageStats({
-          messagesToday: usageData.messagesToday,
-          filesUploaded: usageData.filesUploaded,
-          remaining: usageData.messagesToday // Use messagesToday as remaining count
-        });
-
-        // Set up real-time listeners after essential data is loaded
-        const unsubscribeConversations = listenToConversations(user.uid, (convos) => {
-          setConversations(convos);
-        });
-
-        return () => {
-          unsubscribeConversations();
-        };
-      } catch (error) {
-        console.error("[Dashboard] Error loading initial data:", error);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  // Lazy load additional data
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-
-    // Load groups data
-    const groupsRef = collection(db, 'users', user.uid, 'groups');
-    const unsubscribeGroups = onSnapshot(groupsRef, async (snapshot) => {
-      const groupIds = snapshot.docs.map(doc => doc.id);
-      const groupsData = await Promise.all(
-        groupIds.map(async (groupId) => {
-          const groupDoc = await getDoc(doc(db, 'groups', groupId));
-          if (groupDoc.exists()) {
-            const data = groupDoc.data();
-            return {
-              id: groupId,
-              name: data.name || 'Unnamed Group',
-              code: data.code || '',
-              hostXloudID: data.hostXloudID || '',
-              description: data.description || ''
-            };
-          }
-          return null;
-        })
-      );
-      setUserGroups(groupsData.filter((group): group is NonNullable<typeof group> => group !== null));
-    });
-
-    // Load linked users
-    const fetchLinkedUsers = async () => {
-      try {
-        const subscriptionRef = doc(db, 'users', user.uid, 'subscription', 'current');
-        const subscriptionDoc = await getDoc(subscriptionRef);
         
-        if (subscriptionDoc.exists()) {
-          const subscriptionData = subscriptionDoc.data();
-          const invitedUsers = subscriptionData.invitedUsers || [];
-          
-          const userDetails = await Promise.all(
-            invitedUsers.map(async (uid: string) => {
-              const userRef = doc(db, 'users', uid);
-              const userDoc = await getDoc(userRef);
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
+        // Set basic user info immediately
+        const currentUser = auth.currentUser;
+        console.log('[Dashboard] Current user:', { 
+          uid: currentUser?.uid,
+          email: currentUser?.email,
+          displayName: currentUser?.displayName 
+        });
+        
+        if (currentUser) {
+          setUser(currentUser);
+          setDisplayName(currentUser.displayName || '');
+          setEmail(currentUser.email || '');
+          setPhoneNumber(currentUser.phoneNumber || '');
+        }
+
+        // Load essential data
+        try {
+          console.log('[Dashboard] Loading subscription and usage data');
+          const [subscriptionData, usageData] = await Promise.all([
+            // Get subscription data
+            (async () => {
+              if (!currentUser) {
+                console.log('[Dashboard] No current user for subscription data');
+                return null;
+              }
+              console.log('[Dashboard] Fetching subscription data for user:', currentUser.uid);
+              const billingRef = doc(db, 'users', currentUser.uid, 'billing', 'subscription');
+              const billingDoc = await getDoc(billingRef);
+              if (billingDoc.exists()) {
+                const data = billingDoc.data();
+                console.log('[Dashboard] Subscription data found:', { 
+                  plan: data.plan,
+                  status: data.status 
+                });
                 return {
-                  uid,
-                  email: userData.email,
-                  photoURL: userData.photoURL || USER_PROFILE,
-                  displayName: userData.displayName || userData.email
+                  plan: data.plan as 'Free' | 'Pro' | 'Pro-Plus',
+                  isActive: data.status === 'active' || data.status === 'trialing',
+                  stripeCustomerId: data.stripeCustomerId,
+                  stripeSubscriptionId: data.subscriptionId,
+                  startDate: data.currentPeriodStart,
+                  nextBillingDate: data.currentPeriodEnd,
+                  status: data.status as 'active' | 'canceled' | 'past_due' | 'trialing',
+                  billingHistory: data.billingHistory || [],
+                  isInvitedUser: data.isInvitedUser,
+                  inviterEmail: data.inviterEmail,
+                  billingGroup: data.billingGroup,
+                  xloudId: data.xloudId
                 };
               }
-              return null;
-            })
-          );
+              console.log('[Dashboard] No subscription data found, using default');
+              return {
+                plan: 'Free' as const,
+                isActive: false,
+                status: 'canceled' as const,
+                billingHistory: []
+              };
+            })(),
+            // Get usage stats
+            currentUser ? getUsageStats(currentUser.uid) : Promise.resolve({ messagesToday: 0, filesUploaded: 0 })
+          ]);
 
-          setLinkedUsers(userDetails.filter((user): user is LinkedUser => user !== null));
+          console.log('[Dashboard] Setting subscription and usage data:', {
+            subscription: subscriptionData,
+            usage: usageData
+          });
+          
+          setUserSubscription(subscriptionData);
+          setUsageStats({
+            messagesToday: usageData.messagesToday,
+            filesUploaded: usageData.filesUploaded,
+            remaining: usageData.messagesToday
+          });
+        } catch (error) {
+          console.error('[Dashboard] Error loading user data:', error);
+          setError('Failed to load user data');
         }
       } catch (error) {
-        console.error('Error fetching linked users:', error);
+        console.error('[Dashboard] Authentication error:', error);
+        router.replace('/');
+      } finally {
+        console.log('[Dashboard] Finishing initialization, setting loading to false');
+        setIsLoading(false);
       }
     };
 
-    fetchLinkedUsers();
+    initializeAuth();
+  }, [authState, router, handleAuth]);
 
-    return () => {
-      unsubscribeGroups();
-    };
-  }, [isAuthenticated, user]);
-
-  // Replace the existing loading state JSX with this enhanced version
+  // Show loading state
   if (isLoading) {
+    console.log('[Dashboard] Rendering loading state:', { authStatus });
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-center max-w-md px-4">
@@ -2267,9 +617,200 @@ Remember: You're not just an AI assistant — you're a thinking, learning entity
   }
 
   // Only render content if authenticated
-  if (!isAuthenticated) {
+  if (!authState) {
+    console.log('[Dashboard] Not authenticated, returning null');
     return null; // Will redirect in useEffect
   }
+
+  console.log('[Dashboard] Rendering main dashboard content');
+  // Add function declarations
+  const handleNewChat = async () => {
+    try {
+      const newConversation = await createConversation();
+      setActiveConversationId(newConversation.id);
+      setMessages([]);
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+      setError('Failed to create new chat');
+    }
+  };
+
+  const handleExampleClick = async (prompt: string) => {
+    setInput(prompt);
+    // Trigger send after setting input
+    setTimeout(() => {
+      const event = new Event('submit') as any;
+      event.preventDefault = () => {};
+      handleSend(event);
+    }, 0);
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() && uploads.length === 0) return;
+
+    try {
+      const messageText = input.trim();
+      setInput('');
+      
+      // Add user message
+      const userMessage: Message = {
+        sender: 'user',
+        text: messageText,
+        files: uploads
+      };
+      
+      // Clear uploads after sending
+      setUploads([]);
+      
+      // Add message to conversation
+      if (activeConversationId) {
+        await addMessage(activeConversationId, userMessage);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError('Failed to send message');
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileId = Math.random().toString(36).substring(7);
+        
+        // Upload file to storage
+        const storageRef = ref(storage, `uploads/${fileId}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        
+        // Add to uploads state
+        setUploads(prev => [...prev, {
+          id: fileId,
+          file,
+          url,
+          type: file.type.startsWith('image/') ? 'image' : 'pdf',
+          name: file.name
+        }]);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setError('Failed to upload file');
+    }
+  };
+
+  const handleMicClick = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+      setError('Speech recognition is not supported in your browser');
+      return;
+    }
+
+    if (listening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setListening(false);
+      return;
+    }
+
+    const recognition = new (window as any).webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      setListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0])
+        .map((result: any) => result.transcript)
+        .join('');
+
+      setInput(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setListening(false);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const removeUpload = (id: string) => {
+    setUploads(prev => prev.filter(upload => upload.id !== id));
+  };
+
+  const handleProfilePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImageToCrop(URL.createObjectURL(file));
+      setShowCropper(true);
+    } catch (error) {
+      console.error('Error preparing image for crop:', error);
+      setError('Failed to prepare image for upload');
+    }
+  };
+
+  const handleUpdateProfile = async (field: string, value: string) => {
+    if (!user) return;
+
+    try {
+      setIsUpdating(true);
+      if (field === 'displayName') {
+        await updateProfile(user, { displayName: value });
+        setDisplayName(value);
+      } else if (field === 'email') {
+        await updateEmail(user, value);
+        setEmail(value);
+      }
+      setSuccess(`${field} updated successfully`);
+    } catch (error) {
+      console.error(`Error updating ${field}:`, error);
+      setError(`Failed to update ${field}`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    try {
+      await deleteUser(user);
+      router.replace('/');
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      setError('Failed to delete account');
+    }
+  };
+
+  const handleArchiveAccount = async () => {
+    if (!user) return;
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        archived: true,
+        archivedAt: serverTimestamp()
+      });
+      router.replace('/');
+    } catch (error) {
+      console.error('Error archiving account:', error);
+      setError('Failed to archive account');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
