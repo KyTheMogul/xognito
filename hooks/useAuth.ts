@@ -1,28 +1,36 @@
 import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
-import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
+import { signInWithCustomToken, onAuthStateChanged, User } from 'firebase/auth';
+import { useRouter, usePathname } from 'next/navigation';
 
 export function useAuth() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setIsAuthenticated(!!user);
+      setIsLoading(false);
+
       if (user) {
         // Only redirect to dashboard if we're on the landing page and have a token
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
-        if (window.location.pathname === '/' && token) {
+        if (pathname === '/' && token) {
           router.replace('/dashboard');
         }
+      } else if (pathname === '/dashboard') {
+        // If user is not authenticated and trying to access dashboard, redirect to landing
+        router.replace('/');
       }
     });
     return () => unsubscribe();
-  }, [router]);
+  }, [router, pathname]);
 
   const handleAuth = useCallback(async () => {
     setIsLoading(true);
@@ -71,6 +79,7 @@ export function useAuth() {
     handleAuth,
     isLoading,
     error,
-    isAuthenticated
+    isAuthenticated,
+    user
   };
 } 
