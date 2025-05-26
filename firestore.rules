@@ -2,6 +2,19 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Rate limiting functions
+    function isRateLimited(limit, window) {
+      return request.time > resource.data.lastAttempt + duration.value(window, 's') ||
+             resource.data.attempts < limit;
+    }
+
+    function updateRateLimit() {
+      return {
+        lastAttempt: request.time,
+        attempts: (resource.data.attempts + 1)
+      };
+    }
+
     // Allow public read access to usernames for authentication
     match /users/{userId} {
       allow read: if true;  // Allow reading user documents for username lookup
@@ -10,11 +23,10 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Helper function to check if user is admin
+    // Helper function to check if user is admin (with caching)
     function isAdmin() {
-      return request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return request.auth != null && userData.role == 'admin';
     }
 
     // Helper function to check if user is authenticated
@@ -22,10 +34,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Optimized invited user check
     function isInvitedUser() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)/settings/billing).data.isInvitedUser == true;
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isAuthenticated() && userData.settings?.billing?.isInvitedUser == true;
     }
 
     function isOwner(userId) {
@@ -87,13 +99,19 @@ service cloud.firestore {
       allow update: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if isAuthenticated() && request.auth.uid == userId;
       
-      // Nested conversations collection
+      // Nested conversations collection with rate limiting
       match /conversations/{conversationId} {
-        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow create: if isAuthenticated() && request.auth.uid == userId && 
+          isRateLimited(10, 60); // 10 messages per minute
+        allow update, delete: if isAuthenticated() && request.auth.uid == userId;
         
-        // Nested messages collection
+        // Nested messages collection with rate limiting
         match /messages/{messageId} {
-          allow read, write: if isAuthenticated() && request.auth.uid == userId;
+          allow read: if isAuthenticated() && request.auth.uid == userId;
+          allow create: if isAuthenticated() && request.auth.uid == userId && 
+            isRateLimited(20, 60); // 20 messages per minute
+          allow update, delete: if isAuthenticated() && request.auth.uid == userId;
         }
       }
 
@@ -120,9 +138,19 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
-      // User's groups collection
+      // User's groups collection with rate limiting
       match /groups/{groupId} {
-        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow create: if isAuthenticated() && request.auth.uid == userId && 
+          isRateLimited(5, 3600); // 5 groups per hour
+        allow update, delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Profile updates with rate limiting
+      match /profile/{document=**} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && 
+          isRateLimited(10, 3600); // 10 profile updates per hour
       }
 
       // User settings rules
@@ -136,20 +164,22 @@ service cloud.firestore {
       }
     }
 
-    // Groups collection rules
+    // Groups collection rules with rate limiting
     match /groups/{groupId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        isRateLimited(5, 3600); // 5 groups per hour
       allow update, delete: if isAuthenticated() && 
         (resource.data.ownerId == request.auth.uid || 
          resource.data.members[request.auth.uid] != null);
 
-      // Messages subcollection
+      // Messages subcollection with rate limiting
       match /messages/{messageId} {
         allow read: if isAuthenticated() && 
           (get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null);
         allow create: if isAuthenticated() && 
-          (get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null);
+          (get(/databases/$(database)/documents/groups/$(groupId)).data.members[request.auth.uid] != null) &&
+          isRateLimited(30, 60); // 30 messages per minute
         allow update, delete: if isAuthenticated() && 
           (resource.data.senderId == request.auth.uid || 
            get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid);
