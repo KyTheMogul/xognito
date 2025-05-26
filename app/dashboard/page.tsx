@@ -356,6 +356,19 @@ function getFirstName(displayName: string | null): string {
 // Force new deployment - May 15, 2024
 export default function Dashboard() {
   const router = useRouter();
+  const { isAuthenticated: authState } = useAuth();
+
+  useEffect(() => {
+    if (!authState) {
+      // Removed redirection to landing page
+      // router.replace('/');
+    }
+  }, [authState, router]);
+
+  if (!authState) {
+    return null; // or a loading spinner
+  }
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);

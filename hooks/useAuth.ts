@@ -12,9 +12,20 @@ export function useAuth() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsAuthenticated(!!user);
+      if (user) {
+        // If user is authenticated and on the landing page, redirect to dashboard
+        if (window.location.pathname === '/') {
+          router.replace('/dashboard');
+        }
+      } else {
+        // If user is not authenticated and on a protected page, redirect to landing
+        if (window.location.pathname !== '/') {
+          router.replace('/');
+        }
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const handleAuth = useCallback(async () => {
     setIsLoading(true);
@@ -50,7 +61,7 @@ export function useAuth() {
 
       // Sign in with Firebase token
       await signInWithCustomToken(auth, firebaseToken);
-      router.replace('/dashboard');
+      // The onAuthStateChanged listener will handle the redirection
     } catch (error) {
       setError(error as Error);
       if (window.location.pathname !== '/') {
