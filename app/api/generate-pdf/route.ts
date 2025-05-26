@@ -16,7 +16,12 @@ export async function POST(request: Request) {
 2. Organize the content into sections with appropriate headings
 3. Format lists and paragraphs properly
 4. Add any necessary context or explanations
-5. Keep the formatting clean and professional`
+5. Keep the formatting clean and professional
+6. Use markdown formatting:
+   - Use # for the main title
+   - Use ## for section headings
+   - Use - for list items
+   - Use blank lines to separate paragraphs`
       },
       {
         role: 'user' as const,
@@ -34,7 +39,10 @@ export async function POST(request: Request) {
     const bodyContent = formattedContent.replace(/^# .+$/m, '').trim();
 
     // Create a new PDF document
-    const doc = new PDFDocument();
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 50
+    });
     const chunks: Buffer[] = [];
 
     // Collect PDF chunks
@@ -42,24 +50,36 @@ export async function POST(request: Request) {
 
     // Add content to PDF
     doc.fontSize(24).text(title, { align: 'center' });
-    doc.moveDown();
+    doc.moveDown(2);
 
     // Process the content line by line
     const lines = bodyContent.split('\n');
+    let currentList = false;
+
     for (const line of lines) {
       if (line.startsWith('## ')) {
         // Section heading
         doc.moveDown();
         doc.fontSize(16).text(line.replace('## ', ''), { underline: true });
         doc.moveDown(0.5);
+        currentList = false;
       } else if (line.startsWith('- ')) {
         // List item
+        if (!currentList) {
+          doc.moveDown();
+          currentList = true;
+        }
         doc.fontSize(12).text('• ' + line.replace('- ', ''), { indent: 20 });
       } else if (line.trim() === '') {
         // Empty line
         doc.moveDown();
+        currentList = false;
       } else {
         // Regular paragraph
+        if (currentList) {
+          doc.moveDown();
+          currentList = false;
+        }
         doc.fontSize(12).text(line);
       }
     }
