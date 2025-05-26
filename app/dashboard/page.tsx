@@ -826,11 +826,36 @@ export default function Dashboard() {
     try {
       setIsChangingPlan(true);
       const userRef = doc(db, 'users', user.uid, 'billing', 'subscription');
-      await updateDoc(userRef, {
+      
+      // Check if document exists
+      const docSnap = await getDoc(userRef);
+      
+      if (!docSnap.exists()) {
+        console.log('[Dashboard] Creating new subscription document');
+        // Create new subscription document
+        await setDoc(userRef, {
+          plan: newPlan,
+          status: 'active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          billingHistory: [],
+          isInvitedUser: false
+        });
+      } else {
+        console.log('[Dashboard] Updating existing subscription');
+        // Update existing document
+        await updateDoc(userRef, {
+          plan: newPlan,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      setUserSubscription(prev => prev ? { ...prev, plan: newPlan } : {
         plan: newPlan,
-        updatedAt: serverTimestamp()
+        isActive: true,
+        status: 'active',
+        billingHistory: []
       });
-      setUserSubscription(prev => prev ? { ...prev, plan: newPlan } : null);
       setSuccess('Plan updated successfully');
     } catch (error) {
       console.error('[Dashboard] Error changing plan:', error);
