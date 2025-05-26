@@ -20,9 +20,15 @@ export function useAuth() {
       setUser(user);
       setIsAuthenticated(!!user);
       setIsLoading(false);
+
+      // If user is authenticated and on the home page, redirect to dashboard
+      if (user && window.location.pathname === '/') {
+        console.log('[Auth] User is authenticated, redirecting to dashboard');
+        router.replace('/dashboard');
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const handleAuth = useCallback(async () => {
     console.log('[Auth] Starting authentication process');
@@ -74,19 +80,13 @@ export function useAuth() {
         email: userCredential.user.email
       });
 
-      // Only redirect if we're not already on the dashboard
-      if (window.location.pathname !== '/dashboard') {
-        console.log('[Auth] Redirecting to dashboard');
-        router.replace('/dashboard');
-      }
+      // Redirect to dashboard after successful authentication
+      console.log('[Auth] Redirecting to dashboard');
+      router.replace('/dashboard');
     } catch (error) {
       console.error('[Auth] Authentication error:', error);
       setError(error as Error);
-      // Only redirect to home if we're not already there
-      if (window.location.pathname !== '/') {
-        console.log('[Auth] Redirecting to home due to error');
-        router.replace('/');
-      }
+      // Don't redirect on error, let the component handle it
     } finally {
       setIsLoading(false);
     }

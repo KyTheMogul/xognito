@@ -70,9 +70,6 @@ export default function LandingPage() {
     if (token) {
       console.log("[XloudID] Token found in URL, initiating authentication");
       handleAuth();
-    } else if (isAuthenticated) {
-      console.log("[XloudID] User is authenticated, redirecting to dashboard");
-      router.replace('/dashboard');
     }
 
     const eventDate = new Date();
@@ -125,7 +122,7 @@ export default function LandingPage() {
     return () => {
       clearInterval(interval);
     };
-  }, [handleAuth, isAuthenticated, router]);
+  }, [handleAuth]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
