@@ -48,6 +48,60 @@ async function getOrCreateUidFromXloudId(token: string): Promise<string> {
   return `xloudid_${hash.substring(0, 20)}`;
 }
 
+// Function to initialize user settings
+async function initializeUserSettings(uid: string) {
+  const settingsRef = adminDb.collection('users').doc(uid).collection('settings').doc('user');
+  const billingRef = adminDb.collection('users').doc(uid).collection('settings').doc('billing');
+
+  const defaultSettings = {
+    theme: 'system',
+    notifications: {
+      email: true,
+      push: true,
+      weeklyDigest: false,
+      groupRequests: true,
+    },
+    ai: {
+      model: 'default',
+      temperature: 0.7,
+      maxTokens: 2000,
+    },
+    memory: {
+      enabled: true,
+      retentionDays: 30,
+      autoArchive: true,
+    },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const defaultBilling = {
+    plan: 'free',
+    status: 'active',
+    startDate: new Date(),
+    nextBillingDate: new Date(),
+    billingHistory: [],
+    usage: {
+      messagesToday: 0,
+      filesUploaded: 0,
+      lastReset: new Date(),
+    },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  try {
+    await Promise.all([
+      settingsRef.set(defaultSettings),
+      billingRef.set(defaultBilling)
+    ]);
+    console.log("[XloudID API] User settings initialized successfully");
+  } catch (error) {
+    console.error("[XloudID API] Error initializing user settings:", error);
+    throw error;
+  }
+}
+
 export async function POST(request: Request) {
   console.log("[XloudID API] POST request received");
   try {
@@ -66,6 +120,7 @@ export async function POST(request: Request) {
     console.log("[XloudID API] Using UID:", uid);
 
     let user;
+    let isNewUser = false;
     try {
       console.log("[XloudID API] Attempting to get user:", uid);
       user = await auth.getUser(uid);
@@ -88,6 +143,7 @@ export async function POST(request: Request) {
           emailVerified: true,
           disabled: false
         });
+        isNewUser = true;
         console.log("[XloudID API] User created in Firebase Auth successfully:", {
           uid: user.uid,
           email: user.email,
@@ -122,6 +178,11 @@ export async function POST(request: Request) {
         emailVerified: true
       }, { merge: true })
     ]);
+
+    // Initialize settings for new users
+    if (isNewUser) {
+      await initializeUserSettings(uid);
+    }
 
     const response = { 
       firebaseToken,
