@@ -1,17 +1,20 @@
 import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
-import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { signInWithCustomToken, onAuthStateChanged, User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
 export function useAuth() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setIsAuthenticated(!!user);
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -54,7 +57,7 @@ export function useAuth() {
     } catch (error) {
       setError(error as Error);
       if (window.location.pathname !== '/') {
-        router.push('/');
+        router.replace('/');
       }
     } finally {
       setIsLoading(false);
@@ -65,6 +68,7 @@ export function useAuth() {
     handleAuth,
     isLoading,
     error,
-    isAuthenticated
+    isAuthenticated,
+    user
   };
 } 
